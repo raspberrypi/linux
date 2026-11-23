@@ -233,6 +233,7 @@ static bool pmz_receive_chars(struct uart_pmac_port *uap)
 		ch &= uap->parity_mask;
 		if (ch == 0 && uap->flags & PMACZILOG_FLAG_BREAK) {
 			uap->flags &= ~PMACZILOG_FLAG_BREAK;
+			r1 |= BRK_ABRT;
 		}
 
 #if defined(CONFIG_MAGIC_SYSRQ) && defined(CONFIG_SERIAL_CORE_CONSOLE)
@@ -1776,7 +1777,7 @@ static struct macio_driver pmz_driver = {
 
 static struct platform_driver pmz_driver = {
 	.probe		= pmz_attach,
-	.remove_new	= pmz_detach,
+	.remove		= pmz_detach,
 	.driver		= {
 		.name		= "scc",
 	},

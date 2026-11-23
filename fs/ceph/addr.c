@@ -82,6 +82,7 @@ static bool ceph_dirty_folio(struct address_space *mapping, struct folio *folio)
 {
 	struct inode *inode = mapping->host;
 	struct ceph_client *cl = ceph_inode_to_client(inode);
+	struct ceph_mds_client *mdsc = ceph_sb_to_mdsc(inode->i_sb);
 	struct ceph_inode_info *ci;
 	struct ceph_snap_context *snapc;
 
@@ -91,6 +92,8 @@ static bool ceph_dirty_folio(struct address_space *mapping, struct folio *folio)
 		VM_BUG_ON_FOLIO(!folio_test_private(folio), folio);
 		return false;
 	}
+
+	atomic64_inc(&mdsc->dirty_folios);
 
 	ci = ceph_inode(inode);
 
@@ -432,6 +435,17 @@ static void ceph_netfs_issue_read(struct netfs_io_subrequest *subreq)
 		osd_req_op_extent_osd_iter(req, 0, &subreq->io_iter);
 	}
 	if (!ceph_inc_osd_stopping_blocker(fsc->mdsc)) {
+		struct ceph_osd_data *osd_data =
+			osd_req_op_extent_osd_data(req, 0);
+
+		if (osd_data->type == CEPH_OSD_DATA_TYPE_PAGES) {
+			int num_pages = calc_pages_for(osd_data->alignment,
+						       osd_data->length);
+
+			for (int i = 0; i < num_pages; i++)
+				put_page(osd_data->pages[i]);
+			kvfree(osd_data->pages);
+		}
 		err = -EIO;
 		goto out;
 	}
@@ -888,6 +902,7 @@ static void writepages_finish(struct ceph_osd_request *req)
 	struct ceph_snap_context *snapc = req->r_snapc;
 	struct address_space *mapping = inode->i_mapping;
 	struct ceph_fs_client *fsc = ceph_inode_to_fs_client(inode);
+	struct ceph_mds_client *mdsc = ceph_sb_to_mdsc(inode->i_sb);
 	unsigned int len = 0;
 	bool remove_page;
 
@@ -943,6 +958,12 @@ static void writepages_finish(struct ceph_osd_request *req)
 
 			ceph_put_snap_context(detach_page_private(page));
 			end_page_writeback(page);
+
+			if (atomic64_dec_return(&mdsc->dirty_folios) <= 0) {
+				wake_up_all(&mdsc->flush_end_wq);
+				WARN_ON(atomic64_read(&mdsc->dirty_folios) < 0);
+			}
+
 			doutc(cl, "unlocking %p\n", page);
 
 			if (remove_page)
@@ -1246,11 +1267,9 @@ bool is_write_congestion_happened(struct ceph_fs_client *fsc)
 		CONGESTION_ON_THRESH(fsc->mount_options->congestion_kb);
 }
 
-static inline
-int ceph_move_dirty_page_in_page_array(struct address_space *mapping,
-					struct writeback_control *wbc,
-					struct ceph_writeback_ctl *ceph_wbc,
-					struct page *page)
+static inline int move_dirty_folio_in_page_array(struct address_space *mapping,
+		struct writeback_control *wbc,
+		struct ceph_writeback_ctl *ceph_wbc, struct folio *folio)
 {
 	struct inode *inode = mapping->host;
 	struct ceph_fs_client *fsc = ceph_inode_to_fs_client(inode);
@@ -1260,7 +1279,7 @@ int ceph_move_dirty_page_in_page_array(struct address_space *mapping,
 	gfp_t gfp_flags = ceph_wbc->locked_pages ? GFP_NOWAIT : GFP_NOFS;
 
 	if (IS_ENCRYPTED(inode)) {
-		pages[index] = fscrypt_encrypt_pagecache_blocks(page,
+		pages[index] = fscrypt_encrypt_pagecache_blocks(&folio->page,
 								PAGE_SIZE,
 								0,
 								gfp_flags);
@@ -1279,7 +1298,7 @@ int ceph_move_dirty_page_in_page_array(struct address_space *mapping,
 			return err;
 		}
 	} else {
-		pages[index] = page;
+		pages[index] = &folio->page;
 	}
 
 	ceph_wbc->locked_pages++;
@@ -1368,10 +1387,8 @@ int ceph_process_folio_batch(struct address_space *mapping,
 		doutc(cl, "%llx.%llx will write folio %p idx %lu\n",
 		      ceph_vinop(inode), folio, folio->index);
 
-		fsc->write_congested = is_write_congestion_happened(fsc);
-
-		rc = ceph_move_dirty_page_in_page_array(mapping, wbc,
-							ceph_wbc, &folio->page);
+		rc = move_dirty_folio_in_page_array(mapping, wbc, ceph_wbc,
+				folio);
 		if (rc) {
 			/* Did we just begin a new contiguous op? Nevermind! */
 			if (ceph_wbc->len == 0)
@@ -1381,6 +1398,9 @@ int ceph_process_folio_batch(struct address_space *mapping,
 			folio_unlock(folio);
 			break;
 		}
+
+		if (is_write_congestion_happened(fsc))
+			fsc->write_congested = true;
 
 		ceph_wbc->fbatch.folios[i] = NULL;
 		ceph_wbc->len += folio_size(folio);
@@ -1409,6 +1429,16 @@ void ceph_shift_unused_folios_left(struct folio_batch *fbatch)
 	}
 
 	fbatch->nr = n;
+}
+
+static void ceph_undo_wrbuffer_claim(struct inode *inode, struct folio *folio)
+{
+	struct ceph_snap_context *snapc = folio_detach_private(folio);
+
+	if (!snapc)
+		return;
+	ceph_put_wrbuffer_cap_refs(ceph_inode(inode), 1, snapc);
+	ceph_put_snap_context(snapc);
 }
 
 static
@@ -1457,26 +1487,31 @@ new_request:
 	BUG_ON(len < ceph_fscrypt_page_offset(page) + thp_size(page) - offset);
 
 	if (!ceph_inc_osd_stopping_blocker(fsc->mdsc)) {
-		for (i = 0; i < folio_batch_count(&ceph_wbc->fbatch); i++) {
-			struct folio *folio = ceph_wbc->fbatch.folios[i];
-
-			if (!folio)
-				continue;
-
-			page = &folio->page;
-			redirty_page_for_writepage(wbc, page);
-			unlock_page(page);
-		}
-
 		for (i = 0; i < ceph_wbc->locked_pages; i++) {
-			page = ceph_fscrypt_pagecache_page(ceph_wbc->pages[i]);
+			page = ceph_wbc->pages[i];
+			if (fscrypt_is_bounce_page(page)) {
+				page = fscrypt_pagecache_page(page);
+				fscrypt_free_bounce_page(ceph_wbc->pages[i]);
+			}
 
-			if (!page)
-				continue;
+			if (atomic_long_dec_return(&fsc->writeback_count) <
+			    CONGESTION_OFF_THRESH(fsc->mount_options->congestion_kb))
+				fsc->write_congested = false;
 
+			ceph_undo_wrbuffer_claim(inode, page_folio(page));
 			redirty_page_for_writepage(wbc, page);
 			unlock_page(page);
+			put_page(page);
 		}
+
+		if (ceph_wbc->from_pool) {
+			mempool_free(ceph_wbc->pages, ceph_wb_pagevec_pool);
+			ceph_wbc->from_pool = false;
+		} else {
+			kfree(ceph_wbc->pages);
+		}
+		ceph_wbc->pages = NULL;
+		ceph_wbc->locked_pages = 0;
 
 		ceph_osdc_put_request(req);
 		return -EIO;
@@ -1656,13 +1691,18 @@ static int ceph_writepages_start(struct address_space *mapping,
 
 	ceph_init_writeback_ctl(mapping, wbc, &ceph_wbc);
 
+	if (!ceph_inc_osd_stopping_blocker(fsc->mdsc)) {
+		rc = -EIO;
+		goto out;
+	}
+
 retry:
 	rc = ceph_define_writeback_range(mapping, wbc, &ceph_wbc);
 	if (rc == -ENODATA) {
 		/* hmm, why does writepages get called when there
 		   is no dirty data? */
 		rc = 0;
-		goto out;
+		goto dec_osd_stopping_blocker;
 	}
 
 	if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
@@ -1705,8 +1745,11 @@ process_folio_batch:
 		}
 
 		rc = ceph_submit_write(mapping, wbc, &ceph_wbc);
-		if (rc)
-			goto release_folios;
+		if (rc) {
+			/* the OSD client is being torn down, don't retry */
+			folio_batch_release(&ceph_wbc.fbatch);
+			goto dec_osd_stopping_blocker;
+		}
 
 		ceph_wbc.locked_pages = 0;
 		ceph_wbc.strip_unit_end = 0;
@@ -1750,6 +1793,9 @@ release_folios:
 
 	if (wbc->range_cyclic || (ceph_wbc.range_whole && wbc->nr_to_write > 0))
 		mapping->writeback_index = ceph_wbc.index;
+
+dec_osd_stopping_blocker:
+	ceph_dec_osd_stopping_blocker(fsc->mdsc);
 
 out:
 	ceph_put_snap_context(ceph_wbc.last_snapc);

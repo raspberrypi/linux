@@ -937,7 +937,7 @@ static int sifive_serial_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_SERIAL_SIFIVE_CONSOLE
-	if (id > SIFIVE_SERIAL_MAX_PORTS) {
+	if (id >= SIFIVE_SERIAL_MAX_PORTS) {
 		dev_err(&pdev->dev, "too many UARTs (%d)\n", id);
 		return -EINVAL;
 	}
@@ -1046,7 +1046,7 @@ MODULE_DEVICE_TABLE(of, sifive_serial_of_match);
 
 static struct platform_driver sifive_serial_platform_driver = {
 	.probe		= sifive_serial_probe,
-	.remove_new	= sifive_serial_remove,
+	.remove		= sifive_serial_remove,
 	.driver		= {
 		.name	= SIFIVE_SERIAL_NAME,
 		.pm = pm_sleep_ptr(&sifive_uart_pm_ops),

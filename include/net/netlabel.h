@@ -476,7 +476,7 @@ int netlbl_sock_setattr(struct sock *sk,
 			u16 family,
 			const struct netlbl_lsm_secattr *secattr,
 			bool sk_locked);
-void netlbl_sock_delattr(struct sock *sk);
+int netlbl_sock_delattr(struct sock *sk);
 int netlbl_sock_getattr(struct sock *sk,
 			struct netlbl_lsm_secattr *secattr);
 int netlbl_conn_setattr(struct sock *sk,
@@ -484,7 +484,7 @@ int netlbl_conn_setattr(struct sock *sk,
 			const struct netlbl_lsm_secattr *secattr);
 int netlbl_req_setattr(struct request_sock *req,
 		       const struct netlbl_lsm_secattr *secattr);
-void netlbl_req_delattr(struct request_sock *req);
+int netlbl_req_delattr(struct request_sock *req);
 int netlbl_skbuff_setattr(struct sk_buff *skb,
 			  u16 family,
 			  const struct netlbl_lsm_secattr *secattr);
@@ -625,8 +625,9 @@ static inline int netlbl_sock_setattr(struct sock *sk,
 {
 	return -ENOSYS;
 }
-static inline void netlbl_sock_delattr(struct sock *sk)
+static inline int netlbl_sock_delattr(struct sock *sk)
 {
+	return 0;
 }
 static inline int netlbl_sock_getattr(struct sock *sk,
 				      struct netlbl_lsm_secattr *secattr)
@@ -644,9 +645,9 @@ static inline int netlbl_req_setattr(struct request_sock *req,
 {
 	return -ENOSYS;
 }
-static inline void netlbl_req_delattr(struct request_sock *req)
+static inline int netlbl_req_delattr(struct request_sock *req)
 {
-	return;
+	return 0;
 }
 static inline int netlbl_skbuff_setattr(struct sk_buff *skb,
 				      u16 family,

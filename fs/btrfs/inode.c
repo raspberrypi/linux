@@ -3177,8 +3177,6 @@ out:
 		btrfs_end_transaction(trans);
 
 	if (ret || truncated) {
-		u64 unwritten_start = start;
-
 		/*
 		 * If we failed to finish this ordered extent for any reason we
 		 * need to make sure BTRFS_ORDERED_IOERR is set on the ordered
@@ -3190,12 +3188,10 @@ out:
 		if (ret)
 			btrfs_mark_ordered_extent_error(ordered_extent);
 
-		if (truncated)
-			unwritten_start += logical_len;
-		clear_extent_uptodate(io_tree, unwritten_start, end, NULL);
-
 		/*
 		 * Drop extent maps for the part of the extent we didn't write.
+		 * On error the written part is freed below as well, so drop
+		 * its maps too.
 		 *
 		 * We have an exception here for the free_space_inode, this is
 		 * because when we do btrfs_get_extent() on the free space inode
@@ -3208,9 +3204,15 @@ out:
 		 * we don't mess with the extent map tree in the NOCOW case, but
 		 * for now simply skip this if we are the free space inode.
 		 */
-		if (!btrfs_is_free_space_inode(inode))
+		if (!btrfs_is_free_space_inode(inode)) {
+			u64 unwritten_start = start;
+
+			if (truncated && !ret)
+				unwritten_start += logical_len;
+
 			btrfs_drop_extent_map_range(inode, unwritten_start,
 						    end, false);
+		}
 
 		/*
 		 * If the ordered extent had an IOERR or something else went
@@ -3988,45 +3990,35 @@ static void fill_inode_item(struct btrfs_trans_handle *trans,
 			    struct btrfs_inode_item *item,
 			    struct inode *inode)
 {
-	struct btrfs_map_token token;
 	u64 flags;
 
-	btrfs_init_map_token(&token, leaf);
+	btrfs_set_inode_uid(leaf, item, i_uid_read(inode));
+	btrfs_set_inode_gid(leaf, item, i_gid_read(inode));
+	btrfs_set_inode_size(leaf, item, BTRFS_I(inode)->disk_i_size);
+	btrfs_set_inode_mode(leaf, item, inode->i_mode);
+	btrfs_set_inode_nlink(leaf, item, inode->i_nlink);
 
-	btrfs_set_token_inode_uid(&token, item, i_uid_read(inode));
-	btrfs_set_token_inode_gid(&token, item, i_gid_read(inode));
-	btrfs_set_token_inode_size(&token, item, BTRFS_I(inode)->disk_i_size);
-	btrfs_set_token_inode_mode(&token, item, inode->i_mode);
-	btrfs_set_token_inode_nlink(&token, item, inode->i_nlink);
+	btrfs_set_timespec_sec(leaf, &item->atime, inode_get_atime_sec(inode));
+	btrfs_set_timespec_nsec(leaf, &item->atime, inode_get_atime_nsec(inode));
 
-	btrfs_set_token_timespec_sec(&token, &item->atime,
-				     inode_get_atime_sec(inode));
-	btrfs_set_token_timespec_nsec(&token, &item->atime,
-				      inode_get_atime_nsec(inode));
+	btrfs_set_timespec_sec(leaf, &item->mtime, inode_get_mtime_sec(inode));
+	btrfs_set_timespec_nsec(leaf, &item->mtime, inode_get_mtime_nsec(inode));
 
-	btrfs_set_token_timespec_sec(&token, &item->mtime,
-				     inode_get_mtime_sec(inode));
-	btrfs_set_token_timespec_nsec(&token, &item->mtime,
-				      inode_get_mtime_nsec(inode));
+	btrfs_set_timespec_sec(leaf, &item->ctime, inode_get_ctime_sec(inode));
+	btrfs_set_timespec_nsec(leaf, &item->ctime, inode_get_ctime_nsec(inode));
 
-	btrfs_set_token_timespec_sec(&token, &item->ctime,
-				     inode_get_ctime_sec(inode));
-	btrfs_set_token_timespec_nsec(&token, &item->ctime,
-				      inode_get_ctime_nsec(inode));
+	btrfs_set_timespec_sec(leaf, &item->otime, BTRFS_I(inode)->i_otime_sec);
+	btrfs_set_timespec_nsec(leaf, &item->otime, BTRFS_I(inode)->i_otime_nsec);
 
-	btrfs_set_token_timespec_sec(&token, &item->otime, BTRFS_I(inode)->i_otime_sec);
-	btrfs_set_token_timespec_nsec(&token, &item->otime, BTRFS_I(inode)->i_otime_nsec);
-
-	btrfs_set_token_inode_nbytes(&token, item, inode_get_bytes(inode));
-	btrfs_set_token_inode_generation(&token, item,
-					 BTRFS_I(inode)->generation);
-	btrfs_set_token_inode_sequence(&token, item, inode_peek_iversion(inode));
-	btrfs_set_token_inode_transid(&token, item, trans->transid);
-	btrfs_set_token_inode_rdev(&token, item, inode->i_rdev);
+	btrfs_set_inode_nbytes(leaf, item, inode_get_bytes(inode));
+	btrfs_set_inode_generation(leaf, item, BTRFS_I(inode)->generation);
+	btrfs_set_inode_sequence(leaf, item, inode_peek_iversion(inode));
+	btrfs_set_inode_transid(leaf, item, trans->transid);
+	btrfs_set_inode_rdev(leaf, item, inode->i_rdev);
 	flags = btrfs_inode_combine_flags(BTRFS_I(inode)->flags,
 					  BTRFS_I(inode)->ro_flags);
-	btrfs_set_token_inode_flags(&token, item, flags);
-	btrfs_set_token_inode_block_group(&token, item, 0);
+	btrfs_set_inode_flags(leaf, item, flags);
+	btrfs_set_inode_block_group(leaf, item, 0);
 }
 
 /*
@@ -7429,12 +7421,10 @@ next:
 		 *    Since the IO will never happen for this page.
 		 */
 		btrfs_qgroup_free_data(inode, NULL, cur, range_end + 1 - cur, NULL);
-		if (!inode_evicting) {
+		if (!inode_evicting)
 			clear_extent_bit(tree, cur, range_end, EXTENT_LOCKED |
-				 EXTENT_DELALLOC | EXTENT_UPTODATE |
-				 EXTENT_DO_ACCOUNTING | EXTENT_DEFRAG |
-				 extra_flags, &cached_state);
-		}
+					 EXTENT_DELALLOC | EXTENT_DO_ACCOUNTING |
+					 EXTENT_DEFRAG | extra_flags, &cached_state);
 		cur = range_end + 1;
 	}
 	/*

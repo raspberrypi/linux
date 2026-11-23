@@ -140,6 +140,7 @@ struct syscall_fmt {
 };
 
 struct trace {
+	struct perf_env		host_env;
 	struct perf_tool	tool;
 	struct syscalltbl	*sctbl;
 	struct {
@@ -951,7 +952,7 @@ static bool syscall_arg__strtoul_btf_enum(char *bf, size_t size, struct syscall_
 	struct btf *btf = arg->trace->btf;
 	struct btf_enum *be = btf_enum(bt);
 
-	for (int i = 0; i < btf_vlen(bt); ++i, ++be) {
+	for (u32 i = 0; i < btf_vlen(bt); ++i, ++be) {
 		const char *name = btf__name_by_offset(btf, be->name_off);
 		int max_len = max(size, strlen(name));
 
@@ -996,9 +997,9 @@ static bool syscall_arg__strtoul_btf_type(char *bf, size_t size, struct syscall_
 static size_t btf_enum_scnprintf(const struct btf_type *type, struct btf *btf, char *bf, size_t size, int val)
 {
 	struct btf_enum *be = btf_enum(type);
-	const int nr_entries = btf_vlen(type);
+	const unsigned int nr_entries = btf_vlen(type);
 
-	for (int i = 0; i < nr_entries; ++i, ++be) {
+	for (unsigned int i = 0; i < nr_entries; ++i, ++be) {
 		if (be->val == val) {
 			return scnprintf(bf, size, "%s",
 					 btf__name_by_offset(btf, be->name_off));
@@ -1044,7 +1045,7 @@ static size_t btf_struct_scnprintf(const struct btf_type *type, struct btf *btf,
 		return 0;
 
 	/* pretty print the struct data here */
-	if (btf_dump__dump_type_data(btf_dump, type_id, arg->augmented.args->value, type->size, &dump_data_opts) == 0)
+	if (btf_dump__dump_type_data(btf_dump, type_id, arg->augmented.args->value, type->size, &dump_data_opts) <= 0)
 		return 0;
 
 	consumed = sizeof(*augmented_arg) + augmented_arg->size;
@@ -1911,17 +1912,24 @@ static char *trace__machine__resolve_kernel_addr(void *vmachine, unsigned long l
 	return machine__resolve_kernel_addr(vmachine, addrp, modp);
 }
 
-static int trace__symbols_init(struct trace *trace, struct evlist *evlist)
+static int trace__symbols_init(struct trace *trace, int argc, const char **argv,
+			       struct evlist *evlist)
 {
 	int err = symbol__init(NULL);
 
 	if (err)
 		return err;
 
-	trace->host = machine__new_host();
-	if (trace->host == NULL)
-		return -ENOMEM;
+	perf_env__init(&trace->host_env);
+	err = perf_env__set_cmdline(&trace->host_env, argc, argv);
+	if (err)
+		goto out;
 
+	trace->host = machine__new_host(&trace->host_env);
+	if (trace->host == NULL) {
+		err = -ENOMEM;
+		goto out;
+	}
 	thread__set_priv_destructor(thread_trace__delete);
 
 	err = trace_event__register_resolver(trace->host, trace__machine__resolve_kernel_addr);
@@ -1932,9 +1940,10 @@ static int trace__symbols_init(struct trace *trace, struct evlist *evlist)
 					    evlist->core.threads, trace__tool_process,
 					    true, false, 1);
 out:
-	if (err)
+	if (err) {
+		perf_env__exit(&trace->host_env);
 		symbol__exit();
-
+	}
 	return err;
 }
 
@@ -1943,6 +1952,7 @@ static void trace__symbols__exit(struct trace *trace)
 	machine__exit(trace->host);
 	trace->host = NULL;
 
+	perf_env__exit(&trace->host_env);
 	symbol__exit();
 }
 
@@ -3695,7 +3705,12 @@ static int trace__bpf_sys_enter_beauty_map(struct trace *trace, int key, unsigne
 				continue;
 
 			bt = sc->arg_fmt[i].type;
-			beauty_array[i] = bt->size;
+			/* Copy a sockaddr as a buffer sized by the next argument, e.g. addrlen. */
+			if (strcmp(name, "sockaddr") == 0 && field->next &&
+			    strstr(field->next->name, "len"))
+				beauty_array[i] = -((i + 1) + 1);
+			else
+				beauty_array[i] = bt->size;
 			can_augment = true;
 		} else if (field->flags & TEP_FIELD_IS_POINTER && /* string */
 			   strcmp(field->type, "const char *") == 0 &&
@@ -4028,13 +4043,16 @@ static int __trace__deliver_event(struct trace *trace, union perf_event *event)
 {
 	struct evlist *evlist = trace->evlist;
 	struct perf_sample sample;
-	int err = evlist__parse_sample(evlist, event, &sample);
+	int err;
 
+	perf_sample__init(&sample, /*all=*/false);
+	err = evlist__parse_sample(evlist, event, &sample);
 	if (err)
 		fprintf(trace->output, "Can't parse sample, err = %d, skipping...\n", err);
 	else
 		trace__handle_event(trace, event, &sample);
 
+	perf_sample__exit(&sample);
 	return 0;
 }
 
@@ -4293,7 +4311,7 @@ static int trace__run(struct trace *trace, int argc, const char **argv)
 		goto out_delete_evlist;
 	}
 
-	err = trace__symbols_init(trace, evlist);
+	err = trace__symbols_init(trace, argc, argv, evlist);
 	if (err < 0) {
 		fprintf(trace->output, "Problems initializing symbol libraries!\n");
 		goto out_delete_evlist;

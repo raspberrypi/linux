@@ -233,10 +233,11 @@ static void mpi3mr_fwevt_add_to_list(struct mpi3mr_ioc *mrioc,
 {
 	unsigned long flags;
 
-	if (!mrioc->fwevt_worker_thread)
-		return;
-
 	spin_lock_irqsave(&mrioc->fwevt_lock, flags);
+	if (!mrioc->fwevt_worker_thread) {
+		spin_unlock_irqrestore(&mrioc->fwevt_lock, flags);
+		return;
+	}
 	/* get fwevt reference count while adding it to fwevt_list */
 	mpi3mr_fwevt_get(fwevt);
 	INIT_LIST_HEAD(&fwevt->list);
@@ -992,6 +993,10 @@ static int mpi3mr_report_tgtdev_to_host(struct mpi3mr_ioc *mrioc,
 				goto out;
 			}
 		}
+		dprint_event_bh(mrioc,
+		    "exposed target device with handle(0x%04x), perst_id(%d)\n",
+		    tgtdev->dev_handle, perst_id);
+		goto out;
 	} else
 		mpi3mr_report_tgtdev_to_sas_transport(mrioc, tgtdev);
 out:
@@ -1351,9 +1356,9 @@ static void mpi3mr_devstatuschg_evt_bh(struct mpi3mr_ioc *mrioc,
 	    (struct mpi3_event_data_device_status_change *)fwevt->event_data;
 
 	dev_handle = le16_to_cpu(evtdata->dev_handle);
-	ioc_info(mrioc,
-	    "%s :device status change: handle(0x%04x): reason code(0x%x)\n",
-	    __func__, dev_handle, evtdata->reason_code);
+	dprint_event_bh(mrioc,
+	    "processing device status change event bottom half for handle(0x%04x), rc(0x%02x)\n",
+	    dev_handle, evtdata->reason_code);
 	switch (evtdata->reason_code) {
 	case MPI3_EVENT_DEV_STAT_RC_HIDDEN:
 		delete = 1;
@@ -1372,8 +1377,13 @@ static void mpi3mr_devstatuschg_evt_bh(struct mpi3mr_ioc *mrioc,
 	}
 
 	tgtdev = mpi3mr_get_tgtdev_by_handle(mrioc, dev_handle);
-	if (!tgtdev)
+	if (!tgtdev) {
+		dprint_event_bh(mrioc,
+		    "processing device status change event bottom half,\n"
+		    "cannot identify target device for handle(0x%04x), rc(0x%02x)\n",
+		    dev_handle, evtdata->reason_code);
 		goto out;
+	}
 	if (uhide) {
 		tgtdev->is_hidden = 0;
 		if (!tgtdev->host_exposed)
@@ -1413,12 +1423,17 @@ static void mpi3mr_devinfochg_evt_bh(struct mpi3mr_ioc *mrioc,
 
 	perst_id = le16_to_cpu(dev_pg0->persistent_id);
 	dev_handle = le16_to_cpu(dev_pg0->dev_handle);
-	ioc_info(mrioc,
-	    "%s :Device info change: handle(0x%04x): persist_id(0x%x)\n",
-	    __func__, dev_handle, perst_id);
+	dprint_event_bh(mrioc,
+	    "processing device info change event bottom half for handle(0x%04x), perst_id(%d)\n",
+	    dev_handle, perst_id);
 	tgtdev = mpi3mr_get_tgtdev_by_handle(mrioc, dev_handle);
-	if (!tgtdev)
+	if (!tgtdev) {
+		dprint_event_bh(mrioc,
+		    "cannot identify target device for  device info\n"
+		    "change event handle(0x%04x), perst_id(%d)\n",
+		    dev_handle, perst_id);
 		goto out;
+	}
 	mpi3mr_update_tgtdev(mrioc, tgtdev, dev_pg0, false);
 	if (!tgtdev->is_hidden && !tgtdev->host_exposed)
 		mpi3mr_report_tgtdev_to_host(mrioc, perst_id);
@@ -1940,7 +1955,7 @@ static void mpi3mr_pcietopochg_evt_bh(struct mpi3mr_ioc *mrioc,
 static void mpi3mr_logdata_evt_bh(struct mpi3mr_ioc *mrioc,
 	struct mpi3mr_fwevt *fwevt)
 {
-	mpi3mr_app_save_logdata(mrioc, fwevt->event_data,
+	mpi3mr_app_save_logdata_th(mrioc, fwevt->event_data,
 	    fwevt->event_data_size);
 }
 
@@ -2019,8 +2034,13 @@ static void mpi3mr_fwevt_bh(struct mpi3mr_ioc *mrioc,
 	mpi3mr_fwevt_del_from_list(mrioc, fwevt);
 	mrioc->current_event = fwevt;
 
-	if (mrioc->stop_drv_processing)
+	if (mrioc->stop_drv_processing || mrioc->pci_err_recovery) {
+		dprint_event_bh(mrioc,
+				"ignoring event(0x%02x) in the bottom half handler\n"
+				"due to stop_drv_processing or pci_err_recovery\n",
+				fwevt->event_id);
 		goto out;
+	}
 
 	if (mrioc->unrecoverable) {
 		dprint_event_bh(mrioc,
@@ -2031,6 +2051,9 @@ static void mpi3mr_fwevt_bh(struct mpi3mr_ioc *mrioc,
 
 	if (!fwevt->process_evt)
 		goto evt_ack;
+
+	dprint_event_bh(mrioc, "processing event(0x%02x) -(0x%08x) in the bottom half handler\n",
+			fwevt->event_id, fwevt->evt_ctx);
 
 	switch (fwevt->event_id) {
 	case MPI3_EVENT_DEVICE_ADDED:
@@ -2285,7 +2308,8 @@ static void mpi3mr_dev_rmhs_complete_iou(struct mpi3mr_ioc *mrioc,
 		ioc_info(mrioc,
 		    "%s :dev removal handshake completed successfully: handle(0x%04x)\n",
 		    __func__, drv_cmd->dev_handle);
-		clear_bit(drv_cmd->dev_handle, mrioc->removepend_bitmap);
+		if (drv_cmd->dev_handle < mrioc->facts.max_devhandle)
+			clear_bit(drv_cmd->dev_handle, mrioc->removepend_bitmap);
 	}
 
 	if (!list_empty(&mrioc->delayed_rmhs_list)) {
@@ -2399,11 +2423,28 @@ static void mpi3mr_dev_rmhs_send_tm(struct mpi3mr_ioc *mrioc, u16 handle,
 	struct mpi3mr_tgt_dev *tgtdev = NULL;
 	unsigned long flags;
 
+	if (handle >= mrioc->facts.max_devhandle) {
+		ioc_err(mrioc, "dev_remove_hs: handle(0x%04x) >= max_devhandle(0x%04x)\n",
+			handle, mrioc->facts.max_devhandle);
+		if (drv_cmd) {
+			cmd_idx = drv_cmd->host_tag - MPI3MR_HOSTTAG_DEVRMCMD_MIN;
+			drv_cmd->state = MPI3MR_CMD_NOTUSED;
+			drv_cmd->callback = NULL;
+			drv_cmd->dev_handle = MPI3MR_INVALID_DEV_HANDLE;
+			drv_cmd->retry_count = 0;
+			clear_bit(cmd_idx, mrioc->devrem_bitmap);
+		}
+		return;
+	}
+
 	spin_lock_irqsave(&mrioc->tgtdev_lock, flags);
 	tgtdev = __mpi3mr_get_tgtdev_by_handle(mrioc, handle);
 	if (tgtdev && (iou_rc == MPI3_CTRL_OP_REMOVE_DEVICE))
 		tgtdev->state = MPI3MR_DEV_REMOVE_HS_STARTED;
 	spin_unlock_irqrestore(&mrioc->tgtdev_lock, flags);
+
+	if (tgtdev)
+		mpi3mr_tgtdev_put(tgtdev);
 
 	if (drv_cmd)
 		goto issue_cmd;
@@ -2629,12 +2670,28 @@ static void mpi3mr_pcietopochg_evt_th(struct mpi3mr_ioc *mrioc,
 	struct mpi3_event_data_pcie_topology_change_list *topo_evt =
 	    (struct mpi3_event_data_pcie_topology_change_list *)event_reply->event_data;
 	int i;
-	u16 handle;
-	u8 reason_code;
+	u16 handle, avail_len;
+	u8 reason_code, max_entries, num_entries;
 	struct mpi3mr_tgt_dev *tgtdev = NULL;
 	struct mpi3mr_stgt_priv_data *scsi_tgt_priv_data = NULL;
 
-	for (i = 0; i < topo_evt->num_entries; i++) {
+	avail_len = event_reply->event_data_length * 4;
+	if (avail_len < offsetof(struct mpi3_event_data_pcie_topology_change_list, port_entry)) {
+		ioc_err(mrioc, "PCIe topology event: event data too small (%u bytes)\n",
+			avail_len);
+		return;
+	}
+	max_entries = (avail_len -
+		      offsetof(struct mpi3_event_data_pcie_topology_change_list, port_entry)) /
+		      sizeof(struct mpi3_event_pcie_topo_port_entry);
+	num_entries = topo_evt->num_entries;
+	if (num_entries > max_entries) {
+		ioc_err(mrioc, "PCIe topology event: num_entries(%d) exceeds max(%d)\n",
+			num_entries, max_entries);
+		return;
+	}
+
+	for (i = 0; i < num_entries; i++) {
 		handle = le16_to_cpu(topo_evt->port_entry[i].attached_dev_handle);
 		if (!handle)
 			continue;
@@ -2695,12 +2752,28 @@ static void mpi3mr_sastopochg_evt_th(struct mpi3mr_ioc *mrioc,
 	struct mpi3_event_data_sas_topology_change_list *topo_evt =
 	    (struct mpi3_event_data_sas_topology_change_list *)event_reply->event_data;
 	int i;
-	u16 handle;
-	u8 reason_code;
+	u16 handle, avail_len;
+	u8 reason_code, max_entries, num_entries;
 	struct mpi3mr_tgt_dev *tgtdev = NULL;
 	struct mpi3mr_stgt_priv_data *scsi_tgt_priv_data = NULL;
 
-	for (i = 0; i < topo_evt->num_entries; i++) {
+	avail_len = event_reply->event_data_length * 4;
+	if (avail_len < offsetof(struct mpi3_event_data_sas_topology_change_list, phy_entry)) {
+		ioc_err(mrioc, "SAS topology event: event data too small (%u bytes)\n",
+			avail_len);
+		return;
+	}
+	max_entries = (avail_len -
+		      offsetof(struct mpi3_event_data_sas_topology_change_list, phy_entry)) /
+		      sizeof(struct mpi3_event_sas_topo_phy_entry);
+	num_entries = topo_evt->num_entries;
+	if (num_entries > max_entries) {
+		ioc_err(mrioc, "SAS topology event: num_entries(%d) exceeds max(%d)\n",
+			num_entries, max_entries);
+		return;
+	}
+
+	for (i = 0; i < num_entries; i++) {
 		handle = le16_to_cpu(topo_evt->phy_entry[i].attached_dev_handle);
 		if (!handle)
 			continue;
@@ -2770,6 +2843,9 @@ static void mpi3mr_devstatuschg_evt_th(struct mpi3mr_ioc *mrioc,
 		goto out;
 
 	dev_handle = le16_to_cpu(evtdata->dev_handle);
+	dprint_event_th(mrioc,
+	    "device status change event top half with rc(0x%02x) for handle(0x%04x)\n",
+	    evtdata->reason_code, dev_handle);
 
 	switch (evtdata->reason_code) {
 	case MPI3_EVENT_DEV_STAT_RC_INT_DEVICE_RESET_STRT:
@@ -2793,8 +2869,12 @@ static void mpi3mr_devstatuschg_evt_th(struct mpi3mr_ioc *mrioc,
 	}
 
 	tgtdev = mpi3mr_get_tgtdev_by_handle(mrioc, dev_handle);
-	if (!tgtdev)
+	if (!tgtdev) {
+		dprint_event_th(mrioc,
+		    "processing device status change event could not identify device for handle(0x%04x)\n",
+		    dev_handle);
 		goto out;
+	}
 	if (hide)
 		tgtdev->is_hidden = hide;
 	if (tgtdev->starget && tgtdev->starget->hostdata) {
@@ -2872,13 +2952,13 @@ static void mpi3mr_energypackchg_evt_th(struct mpi3mr_ioc *mrioc,
 	u16 shutdown_timeout = le16_to_cpu(evtdata->shutdown_timeout);
 
 	if (shutdown_timeout <= 0) {
-		ioc_warn(mrioc,
+		dprint_event_th(mrioc,
 		    "%s :Invalid Shutdown Timeout received = %d\n",
 		    __func__, shutdown_timeout);
 		return;
 	}
 
-	ioc_info(mrioc,
+	dprint_event_th(mrioc,
 	    "%s :Previous Shutdown Timeout Value = %d New Shutdown Timeout Value = %d\n",
 	    __func__, mrioc->facts.shutdown_timeout, shutdown_timeout);
 	mrioc->facts.shutdown_timeout = shutdown_timeout;
@@ -2963,7 +3043,7 @@ void mpi3mr_add_event_wait_for_device_refresh(struct mpi3mr_ioc *mrioc)
 void mpi3mr_os_handle_events(struct mpi3mr_ioc *mrioc,
 	struct mpi3_event_notification_reply *event_reply)
 {
-	u16 evt_type, sz;
+	u16 evt_type, sz, avail_reply_room;
 	struct mpi3mr_fwevt *fwevt = NULL;
 	bool ack_req = 0, process_evt_bh = 0;
 
@@ -2983,9 +3063,11 @@ void mpi3mr_os_handle_events(struct mpi3mr_ioc *mrioc,
 		struct mpi3_device_page0 *dev_pg0 =
 		    (struct mpi3_device_page0 *)event_reply->event_data;
 		if (mpi3mr_create_tgtdev(mrioc, dev_pg0))
-			ioc_err(mrioc,
-			    "%s :Failed to add device in the device add event\n",
-			    __func__);
+			dprint_event_th(mrioc,
+				"failed to process device added event for handle(0x%04x),\n"
+				"perst_id(%d) in the event top half handler\n",
+				le16_to_cpu(dev_pg0->dev_handle),
+				le16_to_cpu(dev_pg0->persistent_id));
 		else
 			process_evt_bh = 1;
 		break;
@@ -3021,6 +3103,16 @@ void mpi3mr_os_handle_events(struct mpi3mr_ioc *mrioc,
 	}
 	case MPI3_EVENT_DEVICE_INFO_CHANGED:
 	case MPI3_EVENT_LOG_DATA:
+
+		if (mrioc->reply_sz > offsetof(struct mpi3_event_notification_reply, event_data))
+			avail_reply_room = mrioc->reply_sz -
+			    offsetof(struct mpi3_event_notification_reply, event_data);
+		else
+			avail_reply_room = 0;
+		sz = min_t(u16, event_reply->event_data_length * 4, avail_reply_room);
+		mpi3mr_app_save_logdata_th(mrioc,
+			(char *)event_reply->event_data, sz);
+		break;
 	case MPI3_EVENT_ENCL_DEVICE_STATUS_CHANGE:
 	case MPI3_EVENT_ENCL_DEVICE_ADDED:
 	{
@@ -3048,11 +3140,20 @@ void mpi3mr_os_handle_events(struct mpi3mr_ioc *mrioc,
 		break;
 	}
 	if (process_evt_bh || ack_req) {
-		sz = event_reply->event_data_length * 4;
+		dprint_event_th(mrioc,
+		    "scheduling bottom half handler for event(0x%02x) - (0x%08x), ack_required=%d\n",
+		    evt_type, le32_to_cpu(event_reply->event_context), ack_req);
+		if (mrioc->reply_sz > offsetof(struct mpi3_event_notification_reply, event_data))
+			avail_reply_room = mrioc->reply_sz -
+			    offsetof(struct mpi3_event_notification_reply, event_data);
+		else
+			avail_reply_room = 0;
+		sz = min_t(u16, event_reply->event_data_length * 4, avail_reply_room);
 		fwevt = mpi3mr_alloc_fwevt(sz);
 		if (!fwevt) {
-			ioc_info(mrioc, "%s :failure at %s:%d/%s()!\n",
-			    __func__, __FILE__, __LINE__, __func__);
+			dprint_event_th(mrioc,
+				"failed to schedule bottom half handler for\n"
+				"event(0x%02x), ack_required=%d\n", evt_type, ack_req);
 			return;
 		}
 

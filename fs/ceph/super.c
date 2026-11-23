@@ -388,13 +388,18 @@ static int ceph_parse_mon_addr(struct fs_parameter *param,
 {
 	struct ceph_parse_opts_ctx *pctx = fc->fs_private;
 	struct ceph_mount_options *fsopt = pctx->opts;
+	int ret;
+
+	ret = ceph_parse_mon_ips(param->string, strlen(param->string),
+				 pctx->copts, fc->log.log, '/');
+	if (ret)
+		return ret;
 
 	kfree(fsopt->mon_addr);
 	fsopt->mon_addr = param->string;
 	param->string = NULL;
 
-	return ceph_parse_mon_ips(fsopt->mon_addr, strlen(fsopt->mon_addr),
-				  pctx->copts, fc->log.log, '/');
+	return 0;
 }
 
 static int ceph_parse_mount_param(struct fs_context *fc,
@@ -1348,6 +1353,15 @@ static int ceph_get_tree(struct fs_context *fc)
 	doutc(fsc->client, "root %p inode %p ino %llx.%llx\n", res,
 		    d_inode(res), ceph_vinop(d_inode(res)));
 	fc->root = fsc->sb->s_root;
+
+	/*
+	 * The mount is up.  sget_fc() leaves SB_ACTIVE unset, and, unlike
+	 * filesystems that go through vfs_get_super(), nothing else sets
+	 * it here, so iput_final() would always evict an inode whose
+	 * ->drop_inode() asks to retain it.  Set it like nfs_get_tree()
+	 * does.
+	 */
+	sb->s_flags |= SB_ACTIVE;
 	return 0;
 
 out_splat:
@@ -1549,6 +1563,17 @@ static void ceph_kill_sb(struct super_block *s)
 	 * evict the inodes later.
 	 */
 	sync_filesystem(s);
+
+	if (atomic64_read(&mdsc->dirty_folios) > 0) {
+		wait_queue_head_t *wq = &mdsc->flush_end_wq;
+		long timeleft = wait_event_killable_timeout(*wq,
+					atomic64_read(&mdsc->dirty_folios) <= 0,
+					fsc->client->options->mount_timeout);
+		if (!timeleft) /* timed out */
+			pr_warn_client(cl, "umount timed out, %ld\n", timeleft);
+		else if (timeleft < 0) /* killed */
+			pr_warn_client(cl, "umount was killed, %ld\n", timeleft);
+	}
 
 	spin_lock(&mdsc->stopping_lock);
 	mdsc->stopping = CEPH_MDSC_STOPPING_FLUSHING;

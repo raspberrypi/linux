@@ -684,6 +684,22 @@ static inline void vma_numab_state_free(struct vm_area_struct *vma) {}
 #endif /* CONFIG_NUMA_BALANCING */
 
 #ifdef CONFIG_PER_VMA_LOCK
+/* Do the VMA, mm seqcounts indicate the VMA is write locked? */
+static inline bool vma_seqcount_is_write_locked(unsigned int vma_seq,
+						unsigned int mm_seq)
+{
+	/* VMA and mm sequence numbers must match for a write lock. */
+	if (vma_seq != mm_seq)
+		return false;
+
+	/*
+	 * The VMA seqcount is always odd if locked. An even value can only be
+	 * the zero assigned on allocation or stored by
+	 * __mm_reset_vma_seqcounts(), never a write lock.
+	 */
+	return vma_seq & 1;
+}
+
 /*
  * Try to read-lock a vma. The function is allowed to occasionally yield false
  * locked result to avoid performance overhead, in which case we fall back to
@@ -691,6 +707,9 @@ static inline void vma_numab_state_free(struct vm_area_struct *vma) {}
  */
 static inline bool vma_start_read(struct vm_area_struct *vma)
 {
+	unsigned int vma_seq;
+	unsigned int mm_seq;
+
 	/*
 	 * Check before locking. A race might cause false locked result.
 	 * We can use READ_ONCE() for the mm_lock_seq here, and don't need
@@ -698,24 +717,35 @@ static inline bool vma_start_read(struct vm_area_struct *vma)
 	 * we don't rely on for anything - the mm_lock_seq read against which we
 	 * need ordering is below.
 	 */
-	if (READ_ONCE(vma->vm_lock_seq) == READ_ONCE(vma->vm_mm->mm_lock_seq.sequence))
+	vma_seq = READ_ONCE(vma->vm_lock_seq);
+	mm_seq = READ_ONCE(vma->vm_mm->mm_lock_seq.sequence);
+	if (vma_seqcount_is_write_locked(vma_seq, mm_seq))
 		return false;
 
 	if (unlikely(down_read_trylock(&vma->vm_lock->lock) == 0))
 		return false;
 
 	/*
-	 * Overflow might produce false locked result.
-	 * False unlocked result is impossible because we modify and check
+	 * False unlocked result is impossible because a write lock sets
 	 * vma->vm_lock_seq under vma->vm_lock protection and mm->mm_lock_seq
 	 * modification invalidates all existing locks.
 	 *
-	 * We must use ACQUIRE semantics for the mm_lock_seq so that if we are
-	 * racing with vma_end_write_all(), we only start reading from the VMA
-	 * after it has been unlocked.
-	 * This pairs with RELEASE semantics in vma_end_write_all().
+	 * ACQUIRE semantics are required for both reads.
+	 *
+	 * __mm_reset_vma_seqcounts() might reset vma->vm_lock_seq to zero
+	 * after an overflow. A reader observing that zero must also observe
+	 * the VMA modifications made under the write lock which just ended, so
+	 * the ACQUIRE pairs with the smp_wmb() in do_raw_write_seqcount_end()
+	 * that precedes the reset stores.
+	 *
+	 * The ACQUIRE semantics for the mm_lock_seq read is required so that,
+	 * if we are racing with vma_end_write_all(), we only start reading from
+	 * the VMA after it has been unlocked. This pairs with the RELEASE
+	 * semantics in vma_end_write_all().
 	 */
-	if (unlikely(vma->vm_lock_seq == raw_read_seqcount(&vma->vm_mm->mm_lock_seq))) {
+	vma_seq = smp_load_acquire(&vma->vm_lock_seq);
+	mm_seq = raw_read_seqcount(&vma->vm_mm->mm_lock_seq);
+	if (unlikely(vma_seqcount_is_write_locked(vma_seq, mm_seq))) {
 		up_read(&vma->vm_lock->lock);
 		return false;
 	}
@@ -2699,6 +2729,13 @@ static inline unsigned long get_mm_rss(struct mm_struct *mm)
 	return get_mm_counter(mm, MM_FILEPAGES) +
 		get_mm_counter(mm, MM_ANONPAGES) +
 		get_mm_counter(mm, MM_SHMEMPAGES);
+}
+
+static inline unsigned long get_mm_rss_sum(struct mm_struct *mm)
+{
+	return get_mm_counter_sum(mm, MM_FILEPAGES) +
+		get_mm_counter_sum(mm, MM_ANONPAGES) +
+		get_mm_counter_sum(mm, MM_SHMEMPAGES);
 }
 
 static inline unsigned long get_mm_hiwater_rss(struct mm_struct *mm)

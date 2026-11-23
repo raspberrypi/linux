@@ -1013,8 +1013,6 @@ void rtw_ndev_destructor(struct net_device *ndev)
 void rtw_dev_unload(struct adapter *padapter)
 {
 	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(padapter);
-	struct dvobj_priv *pobjpriv = padapter->dvobj;
-	struct debug_priv *pdbgpriv = &pobjpriv->drv_dbg;
 	struct cmd_priv *pcmdpriv = &padapter->cmdpriv;
 	u8 cnt = 0;
 
@@ -1044,7 +1042,6 @@ void rtw_dev_unload(struct adapter *padapter)
 			/* check HW status and SW state */
 			netdev_dbg(padapter->pnetdev,
 				   "%s: driver in IPS-FWLPS\n", __func__);
-			pdbgpriv->dbg_dev_unload_inIPS_cnt++;
 			LeaveAllPowerSaveMode(padapter);
 		} else {
 			netdev_dbg(padapter->pnetdev,
@@ -1128,24 +1125,21 @@ static void rtw_suspend_normal(struct adapter *padapter)
 void rtw_suspend_common(struct adapter *padapter)
 {
 	struct dvobj_priv *psdpriv = padapter->dvobj;
-	struct debug_priv *pdbgpriv = &psdpriv->drv_dbg;
 	struct pwrctrl_priv *pwrpriv = dvobj_to_pwrctl(psdpriv);
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
 
 	unsigned long start_time = jiffies;
 
 	netdev_dbg(padapter->pnetdev, " suspend start\n");
-	pdbgpriv->dbg_suspend_cnt++;
 
 	pwrpriv->bInSuspend = true;
 
 	while (pwrpriv->bips_processing)
 		msleep(1);
 
-	if ((!padapter->bup) || (padapter->bDriverStopped) || (padapter->bSurpriseRemoved)) {
-		pdbgpriv->dbg_suspend_error_cnt++;
-		goto exit;
-	}
+	if ((!padapter->bup) || (padapter->bDriverStopped) || (padapter->bSurpriseRemoved))
+		return;
+
 	rtw_ps_deny(padapter, PS_DENY_SUSPEND);
 
 	rtw_cancel_all_timer(padapter);
@@ -1166,10 +1160,6 @@ void rtw_suspend_common(struct adapter *padapter)
 
 	netdev_dbg(padapter->pnetdev, "rtw suspend success in %d ms\n",
 		   jiffies_to_msecs(jiffies - start_time));
-
-exit:
-
-	return;
 }
 
 static int rtw_resume_process_normal(struct adapter *padapter)
@@ -1177,8 +1167,6 @@ static int rtw_resume_process_normal(struct adapter *padapter)
 	struct net_device *pnetdev;
 	struct pwrctrl_priv *pwrpriv;
 	struct mlme_priv *pmlmepriv;
-	struct dvobj_priv *psdpriv;
-	struct debug_priv *pdbgpriv;
 
 	int ret = _SUCCESS;
 
@@ -1190,8 +1178,6 @@ static int rtw_resume_process_normal(struct adapter *padapter)
 	pnetdev = padapter->pnetdev;
 	pwrpriv = adapter_to_pwrctl(padapter);
 	pmlmepriv = &padapter->mlmepriv;
-	psdpriv = padapter->dvobj;
-	pdbgpriv = &psdpriv->drv_dbg;
 	/*  interface init */
 	/* if (sdio_init(adapter_to_dvobj(padapter)) != _SUCCESS) */
 	if ((padapter->intf_init) && (padapter->intf_init(adapter_to_dvobj(padapter)) != _SUCCESS)) {
@@ -1210,7 +1196,6 @@ static int rtw_resume_process_normal(struct adapter *padapter)
 
 	if (pm_netdev_open(pnetdev, true) != 0) {
 		ret = -1;
-		pdbgpriv->dbg_resume_error_cnt++;
 		goto exit;
 	}
 

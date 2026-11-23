@@ -285,12 +285,24 @@ __kmem_cache_alias(const char *name, unsigned int size, slab_flags_t flags,
  * @object_size: The size of objects to be created in this cache.
  * @args: Additional arguments for the cache creation (see
  *        &struct kmem_cache_args).
- * @flags: See %SLAB_* flags for an explanation of individual @flags.
+ * @flags: See the desriptions of individual flags. The common ones are listed
+ *         in the description below.
  *
  * Not to be called directly, use the kmem_cache_create() wrapper with the same
  * parameters.
  *
- * Context: Cannot be called within a interrupt, but can be interrupted.
+ * Commonly used @flags:
+ *
+ * &SLAB_ACCOUNT - Account allocations to memcg.
+ *
+ * &SLAB_HWCACHE_ALIGN - Align objects on cache line boundaries.
+ *
+ * &SLAB_RECLAIM_ACCOUNT - Objects are reclaimable.
+ *
+ * &SLAB_TYPESAFE_BY_RCU - Slab page (not individual objects) freeing delayed
+ * by a grace period - see the full description before using.
+ *
+ * Context: Cannot be called within an interrupt, but can be interrupted.
  *
  * Return: a pointer to the cache on success, NULL on failure.
  */
@@ -394,7 +406,7 @@ static struct kmem_cache *kmem_buckets_cache __ro_after_init;
  *		to/from userspace.
  * @ctor: A constructor for the objects, run when new allocations are made.
  *
- * Cannot be called within an interrupt, but can be interrupted.
+ * Context: Cannot be called within an interrupt, but can be interrupted.
  *
  * Return: a pointer to the cache on success, NULL on failure. When
  * CONFIG_SLAB_BUCKETS is not enabled, ZERO_SIZE_PTR is returned, and

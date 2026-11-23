@@ -480,9 +480,6 @@ enum {
 	/* generate hardware time stamp based on cycles if supported */
 	SKBTX_HW_TSTAMP_USE_CYCLES = 1 << 3,
 
-	/* generate wifi status information (where possible) */
-	SKBTX_WIFI_STATUS = 1 << 4,
-
 	/* determine hardware time stamp based on time or cycles */
 	SKBTX_HW_TSTAMP_NETDEV = 1 << 5,
 
@@ -622,9 +619,9 @@ struct skb_shared_info {
  *
  * Transport layers send out clones of payload skbs they hold for
  * retransmissions. To allow lower layers of the stack to prepend their headers
- * we split &skb_shared_info.dataref into two halves.
- * The lower 16 bits count the overall number of references.
- * The higher 16 bits indicate how many of the references are payload-only.
+ * we split &skb_shared_info.dataref into two parts.
+ * The lower 30 bits count the overall number of references.
+ * Bit 30 indicates whether one of the references is payload-only.
  * skb_header_cloned() checks if skb is allowed to add / write the headers.
  *
  * The creator of the skb (e.g. TCP) marks its skb as &sk_buff.nohdr
@@ -644,7 +641,7 @@ struct skb_shared_info {
  * Having multiple payload-only skbs with different lengths of hdr_len is not
  * possible. The payload-only skbs should never leave their owner.
  */
-#define SKB_DATAREF_SHIFT 16
+#define SKB_DATAREF_SHIFT 30
 #define SKB_DATAREF_MASK ((1 << SKB_DATAREF_SHIFT) - 1)
 
 
@@ -1017,8 +1014,6 @@ struct sk_buff {
 	__u16			tc_index;	/* traffic control index */
 #endif
 
-	u16			alloc_cpu;
-
 	union {
 		__wsum		csum;
 		struct {
@@ -1070,6 +1065,8 @@ struct sk_buff {
 #endif
 
 	); /* end headers group */
+
+	u16			alloc_cpu;
 
 	/* These elements must be at the end, see alloc_skb() for details.  */
 	sk_buff_data_t		tail;
@@ -4524,6 +4521,81 @@ static inline void skb_metadata_set(struct sk_buff *skb, u8 meta_len)
 static inline void skb_metadata_clear(struct sk_buff *skb)
 {
 	skb_metadata_set(skb, 0);
+}
+
+/**
+ * skb_data_move - Move packet data and metadata after skb_push() or skb_pull().
+ * @skb: packet to operate on
+ * @len: number of bytes pushed or pulled from &sk_buff->data
+ * @n: number of bytes to memmove() from pre-push/pull &sk_buff->data
+ *
+ * Moves @n bytes of packet data, can be zero, and all bytes of skb metadata.
+ *
+ * Assumes metadata is located immediately before &sk_buff->data prior to the
+ * push/pull, and that sufficient headroom exists to hold it after an
+ * skb_push(). Otherwise, metadata is cleared and a one-time warning is issued.
+ *
+ * Prefer skb_postpull_data_move() or skb_postpush_data_move() to calling this
+ * helper directly.
+ */
+static inline void skb_data_move(struct sk_buff *skb, const int len,
+				 const unsigned int n)
+{
+	const u8 meta_len = skb_metadata_len(skb);
+	u8 *meta, *meta_end;
+
+	if (!len || (!n && !meta_len))
+		return;
+
+	if (!meta_len)
+		goto no_metadata;
+
+	meta_end = skb_metadata_end(skb);
+	meta = meta_end - meta_len;
+
+	if (WARN_ON_ONCE(meta_end + len != skb->data ||
+			 meta_len > skb_headroom(skb))) {
+		skb_metadata_clear(skb);
+		goto no_metadata;
+	}
+
+	memmove(meta + len, meta, meta_len + n);
+	return;
+
+no_metadata:
+	memmove(skb->data, skb->data - len, n);
+}
+
+/**
+ * skb_postpull_data_move - Move packet data and metadata after skb_pull().
+ * @skb: packet to operate on
+ * @len: number of bytes pulled from &sk_buff->data
+ * @n: number of bytes to memmove() from pre-pull &sk_buff->data
+ *
+ * See skb_data_move() for details.
+ */
+static inline void skb_postpull_data_move(struct sk_buff *skb,
+					  const unsigned int len,
+					  const unsigned int n)
+{
+	DEBUG_NET_WARN_ON_ONCE(len > INT_MAX);
+	skb_data_move(skb, len, n);
+}
+
+/**
+ * skb_postpush_data_move - Move packet data and metadata after skb_push().
+ * @skb: packet to operate on
+ * @len: number of bytes pushed onto &sk_buff->data
+ * @n: number of bytes to memmove() from pre-push &sk_buff->data
+ *
+ * See skb_data_move() for details.
+ */
+static inline void skb_postpush_data_move(struct sk_buff *skb,
+					  const unsigned int len,
+					  const unsigned int n)
+{
+	DEBUG_NET_WARN_ON_ONCE(len > INT_MAX);
+	skb_data_move(skb, -len, n);
 }
 
 struct sk_buff *skb_clone_sk(struct sk_buff *skb);

@@ -215,6 +215,7 @@ int dp_debug_init(struct device *dev, struct dp_panel *panel,
 
 	debug->link = link;
 	debug->panel = panel;
+	debug->connector = connector;
 
 	debugfs_create_file("dp_debug", 0444, root,
 			debug, &dp_debug_fops);

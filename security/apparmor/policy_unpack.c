@@ -731,6 +731,7 @@ static int unpack_pdb(struct aa_ext *e, struct aa_policydb **policy,
 	void *pos = e->pos;
 	int i, flags, error = -EPROTO;
 	ssize_t size;
+	u32 version = 0;
 
 	pdb = aa_alloc_pdb(GFP_KERNEL);
 	if (!pdb)
@@ -748,6 +749,9 @@ static int unpack_pdb(struct aa_ext *e, struct aa_policydb **policy,
 	if (pdb->perms) {
 		/* perms table present accept is index */
 		flags = TO_ACCEPT1_FLAG(YYTD_DATA32);
+		if (aa_unpack_u32(e, &version, "permsv") && version > 2)
+			/* accept2 used for dfa flags */
+			flags |= TO_ACCEPT2_FLAG(YYTD_DATA32);
 	} else {
 		/* packed perms in accept1 and accept2 */
 		flags = TO_ACCEPT1_FLAG(YYTD_DATA32) |
@@ -795,6 +799,27 @@ static int unpack_pdb(struct aa_ext *e, struct aa_policydb **policy,
 		}
 	}
 
+	/* accept2 is in some cases being allocated, even with perms */
+	if (pdb->dfa && pdb->perms && !pdb->dfa->tables[YYTD_ID_ACCEPT2]) {
+		/* add dfa flags table missing in v2 */
+		u32 noents = pdb->dfa->tables[YYTD_ID_ACCEPT]->td_lolen;
+		u16 tdflags = pdb->dfa->tables[YYTD_ID_ACCEPT]->td_flags;
+		size_t tsize = table_size(noents, tdflags);
+
+		if (!tsize) {
+			*info = "invalid dfa flags table size";
+			error = -EPROTO;
+			goto fail;
+		}
+		pdb->dfa->tables[YYTD_ID_ACCEPT2] = kvzalloc(tsize, GFP_KERNEL);
+		if (!pdb->dfa->tables[YYTD_ID_ACCEPT2]) {
+			*info = "failed to alloc dfa flags table";
+			error = -ENOMEM;
+			goto fail;
+		}
+		pdb->dfa->tables[YYTD_ID_ACCEPT2]->td_lolen = noents;
+		pdb->dfa->tables[YYTD_ID_ACCEPT2]->td_flags = tdflags;
+	}
 	/*
 	 * Unfortunately due to a bug in earlier userspaces, a
 	 * transition table may be present even when the dfa is
@@ -808,9 +833,12 @@ static int unpack_pdb(struct aa_ext *e, struct aa_policydb **policy,
 	if (!pdb->dfa && pdb->trans.table)
 		aa_free_str_table(&pdb->trans);
 
-	/* TODO: move compat mapping here, requires dfa merging first */
-	/* TODO: move verify here, it has to be done after compat mappings */
-
+	/* TODO:
+	 * - move compat mapping here, requires dfa merging first
+	 * - move verify here, it has to be done after compat mappings
+	 * - move free of unneeded trans table here, has to be done
+	 *   after perm mapping.
+	 */
 	*policy = pdb;
 	return 0;
 
@@ -1248,21 +1276,32 @@ static bool verify_perm(struct aa_perms *perm)
 static bool verify_perms(struct aa_policydb *pdb)
 {
 	int i;
+	int xidx, xmax = -1;
 
 	for (i = 0; i < pdb->size; i++) {
 		if (!verify_perm(&pdb->perms[i]))
 			return false;
 		/* verify indexes into str table */
-		if ((pdb->perms[i].xindex & AA_X_TYPE_MASK) == AA_X_TABLE &&
-		    (pdb->perms[i].xindex & AA_X_INDEX_MASK) >= pdb->trans.size)
-			return false;
+		if ((pdb->perms[i].xindex & AA_X_TYPE_MASK) == AA_X_TABLE) {
+			xidx = pdb->perms[i].xindex & AA_X_INDEX_MASK;
+			if (xidx >= pdb->trans.size)
+				return false;
+			if (xmax < xidx)
+				xmax = xidx;
+		}
 		if (pdb->perms[i].tag && pdb->perms[i].tag >= pdb->trans.size)
 			return false;
 		if (pdb->perms[i].label &&
 		    pdb->perms[i].label >= pdb->trans.size)
 			return false;
 	}
-
+	/* deal with incorrectly constructed string tables */
+	if (xmax == -1) {
+		aa_free_str_table(&pdb->trans);
+	} else if (pdb->trans.size > xmax + 1) {
+		if (!aa_resize_str_table(&pdb->trans, xmax + 1, GFP_KERNEL))
+			return false;
+	}
 	return true;
 }
 
@@ -1512,11 +1551,13 @@ int aa_unpack(struct aa_loaddata *udata, struct list_head *lh,
 
 fail_profile:
 	kfree(ns_name);
-	aa_put_profile(profile);
+	aa_put_unpublished_profile(profile);
 
 fail:
 	list_for_each_entry_safe(ent, tmp, lh, list) {
 		list_del_init(&ent->list);
+		aa_put_unpublished_profile(ent->new);
+		ent->new = NULL;
 		aa_load_ent_free(ent);
 	}
 

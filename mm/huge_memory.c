@@ -2128,8 +2128,6 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 			struct page *page = pmd_page(orig_pmd);
 
 			folio = page_folio(page);
-			folio_remove_rmap_pmd(folio, page, vma);
-			WARN_ON_ONCE(folio_mapcount(folio) < 0);
 			VM_BUG_ON_PAGE(!PageHead(page), page);
 		} else if (thp_migration_supported()) {
 			swp_entry_t entry;
@@ -2152,6 +2150,15 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 
 			if (pmd_present(orig_pmd) && pmd_dirty(orig_pmd))
 				folio_mark_dirty(folio);
+		}
+
+		/*
+		 * Only present folios are rmappable. Remove the rmap after
+		 * transferring young+dirty to the folio.
+		 */
+		if (flush_needed) {
+			folio_remove_rmap_pmd(folio, &folio->page, vma);
+			WARN_ON_ONCE(folio_mapcount(folio) < 0);
 		}
 
 		spin_unlock(ptl);

@@ -292,8 +292,11 @@ static struct cs_etm_queue *cs_etm__get_queue(struct cs_etm_auxtrace *etm, int c
 {
 	if (etm->per_thread_decoding)
 		return etm->queues.queue_array[0].priv;
-	else
-		return etm->queues.queue_array[cpu].priv;
+
+	if (cpu < 0 || cpu >= (int)etm->queues.nr_queues)
+		return NULL;
+
+	return etm->queues.queue_array[cpu].priv;
 }
 
 static int cs_etm__map_trace_id_v0(struct cs_etm_auxtrace *etm, u8 trace_chan_id,
@@ -301,23 +304,29 @@ static int cs_etm__map_trace_id_v0(struct cs_etm_auxtrace *etm, u8 trace_chan_id
 {
 	struct cs_etm_queue *etmq;
 
+	etmq = cs_etm__get_queue(etm, cpu_metadata[CS_ETM_CPU]);
+	if (!etmq)
+		return -EINVAL;
+
 	/*
 	 * If the queue is unformatted then only save one mapping in the
 	 * queue associated with that CPU so only one decoder is made.
 	 */
-	etmq = cs_etm__get_queue(etm, cpu_metadata[CS_ETM_CPU]);
 	if (etmq->format == UNFORMATTED)
 		return cs_etm__insert_trace_id_node(etmq, trace_chan_id,
 						    cpu_metadata);
 
 	/*
 	 * Otherwise, version 0 trace IDs are global so save them into every
-	 * queue.
+	 * formatted queue.
 	 */
 	for (unsigned int i = 0; i < etm->queues.nr_queues; ++i) {
 		int ret;
 
 		etmq = etm->queues.queue_array[i].priv;
+		if (!etmq || etmq->format == UNFORMATTED)
+			continue;
+
 		ret = cs_etm__insert_trace_id_node(etmq, trace_chan_id,
 						   cpu_metadata);
 		if (ret)
@@ -358,6 +367,9 @@ static int cs_etm__process_trace_id_v0_1(struct cs_etm_auxtrace *etm, int cpu,
 	u32 sink_id = FIELD_GET(CS_AUX_HW_ID_SINK_ID_MASK, hw_id);
 	u8 trace_id = FIELD_GET(CS_AUX_HW_ID_TRACE_ID_MASK, hw_id);
 
+	if (!etmq)
+		return -EINVAL;
+
 	/*
 	 * Check sink id hasn't changed in per-cpu mode. In per-thread mode,
 	 * let it pass for now until an actual overlapping trace ID is hit. In
@@ -374,6 +386,9 @@ static int cs_etm__process_trace_id_v0_1(struct cs_etm_auxtrace *etm, int cpu,
 	/* Find which other queues use this sink and link their ID maps */
 	for (unsigned int i = 0; i < etm->queues.nr_queues; ++i) {
 		struct cs_etm_queue *other_etmq = etm->queues.queue_array[i].priv;
+
+		if (!other_etmq)
+			continue;
 
 		/* Different sinks, skip */
 		if (other_etmq->sink_id != etmq->sink_id)
@@ -396,6 +411,9 @@ static int cs_etm__process_trace_id_v0_1(struct cs_etm_auxtrace *etm, int cpu,
 	}
 
 	cpu_data = get_cpu_data(etm, cpu);
+	if (!cpu_data)
+		return -EINVAL;
+
 	ret = cs_etm__insert_trace_id_node(etmq, trace_id, cpu_data);
 	if (ret)
 		return ret;
@@ -513,20 +531,27 @@ static int cs_etm__process_aux_output_hw_id(struct perf_session *session,
 	evsel = evlist__event2evsel(session->evlist, event);
 	if (!evsel)
 		return -EINVAL;
+	perf_sample__init(&sample, /*all=*/false);
 	err = evsel__parse_sample(evsel, event, &sample);
 	if (err)
-		return err;
+		goto out;
 	cpu = sample.cpu;
 	if (cpu == -1) {
 		/* no CPU in the sample - possibly recorded with an old version of perf */
 		pr_err("CS_ETM: no CPU AUX_OUTPUT_HW_ID sample. Use compatible perf to record.");
-		return -EINVAL;
+		err = -EINVAL;
+		goto out;
 	}
 
-	if (FIELD_GET(CS_AUX_HW_ID_MINOR_VERSION_MASK, hw_id) == 0)
-		return cs_etm__process_trace_id_v0(etm, cpu, hw_id);
+	if (FIELD_GET(CS_AUX_HW_ID_MINOR_VERSION_MASK, hw_id) == 0) {
+		err = cs_etm__process_trace_id_v0(etm, cpu, hw_id);
+		goto out;
+	}
 
-	return cs_etm__process_trace_id_v0_1(etm, cpu, hw_id);
+	err = cs_etm__process_trace_id_v0_1(etm, cpu, hw_id);
+out:
+	perf_sample__exit(&sample);
+	return err;
 }
 
 void cs_etm__etmq_set_traceid_queue_timestamp(struct cs_etm_queue *etmq,
@@ -1599,8 +1624,9 @@ static int cs_etm__synth_instruction_sample(struct cs_etm_queue *etmq,
 	int ret = 0;
 	struct cs_etm_auxtrace *etm = etmq->etm;
 	union perf_event *event = tidq->event_buf;
-	struct perf_sample sample = {.ip = 0,};
+	struct perf_sample sample;
 
+	perf_sample__init(&sample, /*all=*/true);
 	event->sample.header.type = PERF_RECORD_SAMPLE;
 	event->sample.header.misc = cs_etm__cpu_mode(etmq, addr, packet->el);
 	event->sample.header.size = sizeof(struct perf_event_header);
@@ -1637,6 +1663,7 @@ static int cs_etm__synth_instruction_sample(struct cs_etm_queue *etmq,
 			"CS ETM Trace: failed to deliver instruction event, error %d\n",
 			ret);
 
+	perf_sample__exit(&sample);
 	return ret;
 }
 
@@ -3183,6 +3210,9 @@ static int cs_etm__queue_aux_fragment(struct perf_session *session, off_t file_o
 	    aux_offset + aux_size <= auxtrace_event->offset + auxtrace_event->size) {
 		struct cs_etm_queue *etmq = etm->queues.queue_array[auxtrace_event->idx].priv;
 
+		if (!etmq)
+			return -EINVAL;
+
 		/*
 		 * If this AUX event was inside this buffer somewhere, create a new auxtrace event
 		 * based on the sizes of the aux event, and queue that fragment.
@@ -3252,9 +3282,10 @@ static int cs_etm__queue_aux_records_cb(struct perf_session *session, union perf
 	evsel = evlist__event2evsel(session->evlist, event);
 	if (!evsel)
 		return -EINVAL;
+	perf_sample__init(&sample, /*all=*/false);
 	ret = evsel__parse_sample(evsel, event, &sample);
 	if (ret)
-		return ret;
+		goto out;
 
 	/*
 	 * Loop through the auxtrace index to find the buffer that matches up with this aux event.
@@ -3269,7 +3300,7 @@ static int cs_etm__queue_aux_records_cb(struct perf_session *session, union perf
 			 * 1 ('not found')
 			 */
 			if (ret != 1)
-				return ret;
+				goto out;
 		}
 	}
 
@@ -3279,7 +3310,10 @@ static int cs_etm__queue_aux_records_cb(struct perf_session *session, union perf
 	 */
 	pr_err("CS ETM: Couldn't find auxtrace buffer for aux_offset: %#"PRI_lx64
 	       " tid: %d cpu: %d\n", event->aux.aux_offset, sample.tid, sample.cpu);
-	return 0;
+	ret = 0;
+out:
+	perf_sample__exit(&sample);
+	return ret;
 }
 
 static int cs_etm__queue_aux_records(struct perf_session *session)

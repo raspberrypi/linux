@@ -1797,16 +1797,43 @@ static ssize_t amdgpu_atombios_get_vbios_version(struct device *dev,
 	return sysfs_emit(buf, "%s\n", ctx->vbios_pn);
 }
 
+static ssize_t amdgpu_atombios_get_vbios_build(struct device *dev,
+					       struct device_attribute *attr,
+					       char *buf)
+{
+	struct drm_device *ddev = dev_get_drvdata(dev);
+	struct amdgpu_device *adev = drm_to_adev(ddev);
+	struct atom_context *ctx = adev->mode_info.atom_context;
+
+	return sysfs_emit(buf, "%s\n", ctx->build_num);
+}
+
 static DEVICE_ATTR(vbios_version, 0444, amdgpu_atombios_get_vbios_version,
 		   NULL);
+static DEVICE_ATTR(vbios_build, 0444, amdgpu_atombios_get_vbios_build, NULL);
 
 static struct attribute *amdgpu_vbios_version_attrs[] = {
-	&dev_attr_vbios_version.attr,
-	NULL
+	&dev_attr_vbios_version.attr, &dev_attr_vbios_build.attr, NULL
 };
 
+static umode_t amdgpu_vbios_version_attrs_is_visible(struct kobject *kobj,
+						     struct attribute *attr,
+						     int index)
+{
+	struct device *dev = kobj_to_dev(kobj);
+	struct drm_device *ddev = dev_get_drvdata(dev);
+	struct amdgpu_device *adev = drm_to_adev(ddev);
+	struct atom_context *ctx = adev->mode_info.atom_context;
+
+	if (attr == &dev_attr_vbios_build.attr && !strlen(ctx->build_num))
+		return 0;
+
+	return attr->mode;
+}
+
 const struct attribute_group amdgpu_vbios_version_attr_group = {
-	.attrs = amdgpu_vbios_version_attrs
+	.attrs = amdgpu_vbios_version_attrs,
+	.is_visible = amdgpu_vbios_version_attrs_is_visible,
 };
 
 int amdgpu_atombios_sysfs_init(struct amdgpu_device *adev)
@@ -1866,7 +1893,7 @@ int amdgpu_atombios_init(struct amdgpu_device *adev)
 	atom_card_info->pll_read = cail_pll_read;
 	atom_card_info->pll_write = cail_pll_write;
 
-	adev->mode_info.atom_context = amdgpu_atom_parse(atom_card_info, adev->bios);
+	adev->mode_info.atom_context = amdgpu_atom_parse(atom_card_info, adev->bios, adev->bios_size);
 	if (!adev->mode_info.atom_context) {
 		amdgpu_atombios_fini(adev);
 		return -ENOMEM;

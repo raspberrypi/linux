@@ -162,19 +162,52 @@ static void rose_remove_socket(struct sock *sk)
  */
 void rose_kill_by_neigh(struct rose_neigh *neigh)
 {
-	struct sock *s;
+	struct sock *s, *array[16];
+	bool rescan;
+	int i, cnt;
 
+	/*
+	 * Each socket is disconnected under its lock, which its timers and
+	 * the frames received for it hold while they work on it. That lock
+	 * is taken before rose_list_lock elsewhere, so collect the sockets
+	 * first, as rose_kill_by_device() does. rose_list_lock is still
+	 * held around the change of the neighbour, which rose_release()
+	 * takes under it while it owns the socket. A socket done with has
+	 * no neighbour left and is not collected again.
+	 */
+again:
+	rescan = false;
+	cnt = 0;
 	spin_lock_bh(&rose_list_lock);
 	sk_for_each(s, &rose_list) {
-		struct rose_sock *rose = rose_sk(s);
+		if (rose_sk(s)->neighbour != neigh)
+			continue;
+		if (cnt == ARRAY_SIZE(array)) {
+			rescan = true;
+			break;
+		}
+		sock_hold(s);
+		array[cnt++] = s;
+	}
+	spin_unlock_bh(&rose_list_lock);
 
+	for (i = 0; i < cnt; i++) {
+		struct rose_sock *rose = rose_sk(array[i]);
+
+		bh_lock_sock(array[i]);
+		/* rose_release() takes the neighbour under rose_list_lock */
+		spin_lock_bh(&rose_list_lock);
 		if (rose->neighbour == neigh) {
-			rose_disconnect(s, ENETUNREACH, ROSE_OUT_OF_ORDER, 0);
+			rose_disconnect(array[i], ENETUNREACH, ROSE_OUT_OF_ORDER, 0);
 			rose_neigh_put(rose->neighbour);
 			rose->neighbour = NULL;
 		}
+		spin_unlock_bh(&rose_list_lock);
+		bh_unlock_sock(array[i]);
+		sock_put(array[i]);
 	}
-	spin_unlock_bh(&rose_list_lock);
+	if (rescan)
+		goto again;
 }
 
 /*
@@ -721,9 +754,10 @@ static int rose_release(struct socket *sock)
 		 * Disconnect before the socket lock is dropped: frames put on
 		 * the backlog meanwhile, a Clear Confirmation for one, then
 		 * find it in state 0 instead of dropping the neighbour
-		 * reference a second time. rose_kill_by_neigh() does not take
-		 * the socket lock: take the neighbour under rose_list_lock, as
-		 * it does, so that only one of them drops the reference.
+		 * reference a second time. rose_kill_by_neigh() can run while
+		 * the socket is owned here: take the neighbour under
+		 * rose_list_lock, as it does, so that only one of them drops
+		 * the reference.
 		 */
 		rose_disconnect(sk, 0, -1, -1);
 		spin_lock_bh(&rose_list_lock);
@@ -894,8 +928,6 @@ static int rose_connect(struct socket *sock, struct sockaddr *uaddr, int addr_le
 	if (sock_flag(sk, SOCK_ZAPPED)) {	/* Must bind first - autobinding in this may or may not work */
 		struct net_device *dev;
 
-		sock_reset_flag(sk, SOCK_ZAPPED);
-
 		dev = rose_dev_first();
 		if (!dev) {
 			err = -ENETUNREACH;
@@ -916,6 +948,8 @@ static int rose_connect(struct socket *sock, struct sockaddr *uaddr, int addr_le
 				     GFP_KERNEL);
 		ax25_uid_put(user);
 
+		/* Only now is the socket bound: a failed autobind leaves it as it was */
+		sock_reset_flag(sk, SOCK_ZAPPED);
 		rose_insert_socket(sk);		/* Finish the bind */
 	}
 
@@ -1285,6 +1319,10 @@ static int rose_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 	/* Sanity check the packet size */
 	if (len > 65535)
 		return -EMSGSIZE;
+
+	/* With the Q bit included, the first byte of the data holds it */
+	if (rose->qbitincl && len < 1)
+		return -EINVAL;
 
 	size = len + AX25_BPQ_HEADER_LEN + AX25_MAX_HEADER_LEN + ROSE_MIN_LEN;
 

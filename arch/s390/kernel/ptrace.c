@@ -32,6 +32,7 @@
 #include <asm/runtime_instr.h>
 #include <asm/facility.h>
 #include <asm/fpu.h>
+#include <asm/syscall.h>
 
 #include "entry.h"
 
@@ -347,11 +348,9 @@ static int __poke_user(struct task_struct *child, addr_t addr, addr_t data)
 				return -EINVAL;
 		}
 
-		if (test_pt_regs_flag(regs, PIF_SYSCALL) &&
-			addr == offsetof(struct user, regs.gprs[2])) {
-			struct pt_regs *regs = task_pt_regs(child);
-
-			regs->int_code = 0x20000 | (data & 0xffff);
+		if (addr == offsetof(struct user, regs.gprs[2])) {
+			if (test_pt_regs_flag(regs, PIF_SYSCALL))
+				syscall_set_nr(child, regs, data);
 		}
 		*(addr_t *)((addr_t) &regs->psw + addr) = data;
 	} else if (addr < offsetof(struct user, regs.orig_gpr2)) {

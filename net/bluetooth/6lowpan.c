@@ -705,6 +705,7 @@ static int setup_netdev(struct l2cap_chan *chan, struct lowpan_btle_dev **dev)
 		spin_lock(&devices_lock);
 		list_del_rcu(&(*dev)->list);
 		spin_unlock(&devices_lock);
+		synchronize_rcu();
 		free_netdev(netdev);
 		goto out;
 	}
@@ -1261,7 +1262,7 @@ static int device_event(struct notifier_block *unused,
 			if (entry->netdev == netdev) {
 				BT_DBG("Unregistered netdev %s %p",
 				       netdev->name, netdev);
-				list_del(&entry->list);
+				list_del_rcu(&entry->list);
 				break;
 			}
 		}

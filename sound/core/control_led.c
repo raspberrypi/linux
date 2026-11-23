@@ -243,12 +243,12 @@ static void snd_ctl_led_notify(struct snd_card *card, unsigned int mask,
 static int snd_ctl_led_set_id(int card_number, struct snd_ctl_elem_id *id,
 			      unsigned int group, bool set)
 {
-	struct snd_card *card __free(snd_card_unref) = NULL;
 	struct snd_kcontrol *kctl;
 	struct snd_kcontrol_volatile *vd;
 	unsigned int ioff, access, new_access;
+	struct snd_card *card __free(snd_card_unref) =
+		snd_card_ref(card_number);
 
-	card = snd_card_ref(card_number);
 	if (!card)
 		return -ENXIO;
 	guard(rwsem_write)(&card->controls_rwsem);
@@ -302,13 +302,13 @@ static void snd_ctl_led_clean(struct snd_card *card)
 
 static int snd_ctl_led_reset(int card_number, unsigned int group)
 {
-	struct snd_card *card __free(snd_card_unref) = NULL;
 	struct snd_ctl_led_ctl *lctl, *_lctl;
 	struct snd_ctl_led *led;
 	struct snd_kcontrol_volatile *vd;
 	bool change = false;
+	struct snd_card *card __free(snd_card_unref) =
+		snd_card_ref(card_number);
 
-	card = snd_card_ref(card_number);
 	if (!card)
 		return -ENXIO;
 
@@ -563,12 +563,43 @@ static ssize_t set_led_id(struct snd_ctl_led_card *led_card, const char *buf, si
 	return count;
 }
 
+/*
+ * snd_ctl_led_disconnect() removes these files with card->controls_rwsem
+ * held. so don't let the removal wait for a callback that takes it.
+ */
+static struct kernfs_node *snd_ctl_led_sysfs_enter(struct device *dev,
+						   struct device_attribute *attr)
+{
+	struct kernfs_node *kn;
+
+	if (!try_module_get(THIS_MODULE))
+		return NULL;
+	kn = sysfs_break_active_protection(&dev->kobj, &attr->attr);
+	if (!kn)
+		module_put(THIS_MODULE);
+	return kn;
+}
+
+static void snd_ctl_led_sysfs_exit(struct kernfs_node *kn)
+{
+	sysfs_unbreak_active_protection(kn);
+	module_put(THIS_MODULE);
+}
+
 static ssize_t attach_store(struct device *dev,
 			    struct device_attribute *attr,
 			    const char *buf, size_t count)
 {
 	struct snd_ctl_led_card *led_card = container_of(dev, struct snd_ctl_led_card, dev);
-	return set_led_id(led_card, buf, count, true);
+	struct kernfs_node *kn;
+	ssize_t ret;
+
+	kn = snd_ctl_led_sysfs_enter(dev, attr);
+	if (!kn)
+		return -ENODEV;
+	ret = set_led_id(led_card, buf, count, true);
+	snd_ctl_led_sysfs_exit(kn);
+	return ret;
 }
 
 static ssize_t detach_store(struct device *dev,
@@ -576,7 +607,15 @@ static ssize_t detach_store(struct device *dev,
 			    const char *buf, size_t count)
 {
 	struct snd_ctl_led_card *led_card = container_of(dev, struct snd_ctl_led_card, dev);
-	return set_led_id(led_card, buf, count, false);
+	struct kernfs_node *kn;
+	ssize_t ret;
+
+	kn = snd_ctl_led_sysfs_enter(dev, attr);
+	if (!kn)
+		return -ENODEV;
+	ret = set_led_id(led_card, buf, count, false);
+	snd_ctl_led_sysfs_exit(kn);
+	return ret;
 }
 
 static ssize_t reset_store(struct device *dev,
@@ -594,15 +633,13 @@ static ssize_t reset_store(struct device *dev,
 	return count;
 }
 
-static ssize_t list_show(struct device *dev,
-			 struct device_attribute *attr, char *buf)
+static ssize_t snd_ctl_led_list(struct snd_ctl_led_card *led_card, char *buf)
 {
-	struct snd_ctl_led_card *led_card = container_of(dev, struct snd_ctl_led_card, dev);
-	struct snd_card *card __free(snd_card_unref) = NULL;
 	struct snd_ctl_led_ctl *lctl;
 	size_t l = 0;
+	struct snd_card *card __free(snd_card_unref) =
+		snd_card_ref(led_card->number);
 
-	card = snd_card_ref(led_card->number);
 	if (!card)
 		return -ENXIO;
 	guard(rwsem_read)(&card->controls_rwsem);
@@ -618,6 +655,21 @@ static ssize_t list_show(struct device *dev,
 		}
 	}
 	return l;
+}
+
+static ssize_t list_show(struct device *dev,
+			 struct device_attribute *attr, char *buf)
+{
+	struct snd_ctl_led_card *led_card = container_of(dev, struct snd_ctl_led_card, dev);
+	struct kernfs_node *kn;
+	ssize_t ret;
+
+	kn = snd_ctl_led_sysfs_enter(dev, attr);
+	if (!kn)
+		return -ENODEV;
+	ret = snd_ctl_led_list(led_card, buf);
+	snd_ctl_led_sysfs_exit(kn);
+	return ret;
 }
 
 static DEVICE_ATTR_WO(attach);

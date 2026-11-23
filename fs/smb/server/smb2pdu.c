@@ -2574,6 +2574,9 @@ static noinline int smb2_set_stream_name_xattr(const struct path *path,
 		return -EBADF;
 	}
 
+	if (!test_tree_conn_flag(fp->tcon, KSMBD_TREE_CONN_FLAG_WRITABLE))
+		return -EACCES;
+
 	rc = ksmbd_vfs_setxattr(idmap, path, xattr_stream_name, NULL, 0, 0, false);
 	if (rc < 0)
 		pr_err("Failed to store XATTR stream name :%d\n", rc);
@@ -2823,7 +2826,7 @@ static int parse_durable_handle_context(struct ksmbd_work *work,
 		switch (dh_idx) {
 		case DURABLE_RECONN_V2:
 		{
-			struct create_durable_reconn_v2_req *recon_v2;
+			struct create_durable_handle_reconnect_v2 *recon_v2;
 
 			if (dh_info->type == DURABLE_RECONN ||
 			    dh_info->type == DURABLE_REQ_V2) {
@@ -2833,13 +2836,13 @@ static int parse_durable_handle_context(struct ksmbd_work *work,
 
 			if (le16_to_cpu(context->DataOffset) +
 				le32_to_cpu(context->DataLength) <
-			    sizeof(struct create_durable_reconn_v2_req)) {
+			    sizeof(struct create_durable_handle_reconnect_v2)) {
 				err = -EINVAL;
 				goto out;
 			}
 
-			recon_v2 = (struct create_durable_reconn_v2_req *)context;
-			persistent_id = recon_v2->Fid.PersistentFileId;
+			recon_v2 = (struct create_durable_handle_reconnect_v2 *)context;
+			persistent_id = recon_v2->dcontext.Fid.PersistentFileId;
 			dh_info->fp = ksmbd_lookup_durable_fd(persistent_id);
 			if (!dh_info->fp) {
 				ksmbd_debug(SMB, "Failed to get durable handle state\n");
@@ -2847,7 +2850,7 @@ static int parse_durable_handle_context(struct ksmbd_work *work,
 				goto out;
 			}
 
-			if (memcmp(dh_info->fp->create_guid, recon_v2->CreateGuid,
+			if (memcmp(dh_info->fp->create_guid, recon_v2->dcontext.CreateGuid,
 				   SMB2_CREATE_GUID_SIZE)) {
 				err = -EBADF;
 				ksmbd_put_durable_fd(dh_info->fp);
@@ -2913,7 +2916,7 @@ static int parse_durable_handle_context(struct ksmbd_work *work,
 			durable_v2_blob =
 				(struct create_durable_req_v2 *)context;
 			ksmbd_debug(SMB, "Request for durable v2 open\n");
-			dh_info->fp = ksmbd_lookup_fd_cguid(durable_v2_blob->CreateGuid);
+			dh_info->fp = ksmbd_lookup_fd_cguid(durable_v2_blob->dcontext.CreateGuid);
 			if (dh_info->fp) {
 				if (!memcmp(conn->ClientGUID, dh_info->fp->client_guid,
 					    SMB2_CLIENT_GUID_SIZE)) {
@@ -2938,11 +2941,11 @@ static int parse_durable_handle_context(struct ksmbd_work *work,
 			if ((lc && (lc->req_state & SMB2_LEASE_HANDLE_CACHING_LE)) ||
 			    req_op_level == SMB2_OPLOCK_LEVEL_BATCH) {
 				dh_info->CreateGuid =
-					durable_v2_blob->CreateGuid;
+					durable_v2_blob->dcontext.CreateGuid;
 				dh_info->persistent =
-					le32_to_cpu(durable_v2_blob->Flags);
+					le32_to_cpu(durable_v2_blob->dcontext.Flags);
 				dh_info->timeout =
-					le32_to_cpu(durable_v2_blob->Timeout);
+					le32_to_cpu(durable_v2_blob->dcontext.Timeout);
 				dh_info->type = dh_idx;
 			}
 			break;
@@ -3129,7 +3132,7 @@ int smb2_open(struct ksmbd_work *work)
 
 			rc = ksmbd_vfs_getattr(&fp->filp->f_path, &stat);
 			if (rc)
-				goto err_out2;
+				goto err_out1;
 
 			goto reconnected_fp;
 		}
@@ -6447,6 +6450,11 @@ static int set_file_basic_info(struct ksmbd_file *fp,
 	inode = file_inode(filp);
 	idmap = file_mnt_idmap(filp);
 
+	/* MS-FSA FileBasicInformation: a directory can't be marked TEMPORARY */
+	if (S_ISDIR(inode->i_mode) &&
+	    (file_info->Attributes & FILE_ATTRIBUTE_TEMPORARY_LE))
+		return -EINVAL;
+
 	if (file_info->CreationTime)
 		fp->create_time = le64_to_cpu(file_info->CreationTime);
 
@@ -6943,6 +6951,16 @@ static noinline int smb2_read_pipe(struct ksmbd_work *work)
 
 	id = req->VolatileFileId;
 
+	lockdep_assert_not_held(&work->sess->rpc_lock);
+	down_read(&work->sess->rpc_lock);
+	if (!ksmbd_session_rpc_method(work->sess, id)) {
+		up_read(&work->sess->rpc_lock);
+		rsp->hdr.Status = STATUS_FILE_CLOSED;
+		smb2_set_err_rsp(work);
+		return -ENOENT;
+	}
+	up_read(&work->sess->rpc_lock);
+
 	rpc_resp = ksmbd_rpc_read(work->sess, id);
 	if (rpc_resp) {
 		void *aux_payload_buf;
@@ -7252,6 +7270,16 @@ static noinline int smb2_write_pipe(struct ksmbd_work *work)
 		err = -EINVAL;
 		goto out;
 	}
+
+	lockdep_assert_not_held(&work->sess->rpc_lock);
+	down_read(&work->sess->rpc_lock);
+	if (!ksmbd_session_rpc_method(work->sess, id)) {
+		up_read(&work->sess->rpc_lock);
+		rsp->hdr.Status = STATUS_FILE_CLOSED;
+		smb2_set_err_rsp(work);
+		return -ENOENT;
+	}
+	up_read(&work->sess->rpc_lock);
 
 	data_buf = (char *)(((char *)&req->hdr.ProtocolId) +
 			   data_offset);
@@ -8192,6 +8220,27 @@ static __be32 idev_ipv4_address(struct in_device *idev)
 	return addr;
 }
 
+static struct network_interface_info_ioctl_rsp *
+ksmbd_iface_entry_init(struct smb2_ioctl_rsp *rsp, int nbytes,
+		       struct net_device *netdev, unsigned long long speed)
+{
+	struct network_interface_info_ioctl_rsp *nii_rsp;
+
+	nii_rsp = (struct network_interface_info_ioctl_rsp *)&rsp->Buffer[nbytes];
+	nii_rsp->IfIndex = cpu_to_le32(netdev->ifindex);
+	nii_rsp->Capability = 0;
+	if (netdev->real_num_tx_queues > 1)
+		nii_rsp->Capability |= RSS_CAPABLE;
+	if (ksmbd_rdma_capable_netdev(netdev))
+		nii_rsp->Capability |= RDMA_CAPABLE;
+	nii_rsp->Next = cpu_to_le32(152);
+	nii_rsp->Reserved = 0;
+	nii_rsp->LinkSpeed = cpu_to_le64(speed);
+	memset(nii_rsp->SockAddr_Storage, 0, 128);
+
+	return nii_rsp;
+}
+
 static int fsctl_query_iface_info_ioctl(struct ksmbd_conn *conn,
 					struct smb2_ioctl_rsp *rsp,
 					unsigned int out_buf_len)
@@ -8202,10 +8251,16 @@ static int fsctl_query_iface_info_ioctl(struct ksmbd_conn *conn,
 	struct sockaddr_storage_rsp *sockaddr_storage;
 	unsigned int flags;
 	unsigned long long speed;
+	struct ethtool_link_ksettings cmd;
 
 	rtnl_lock();
 	for_each_netdev(&init_net, netdev) {
-		bool ipv4_set = false;
+		struct inet6_ifaddr *ifa;
+		struct inet6_dev *idev6;
+		struct in_device *idev;
+		struct in6_addr ip6 = { };
+		bool have_ip6 = false;
+		__be32 ip4 = 0;
 
 		if (netdev->type == ARPHRD_LOOPBACK)
 			continue;
@@ -8216,87 +8271,80 @@ static int fsctl_query_iface_info_ioctl(struct ksmbd_conn *conn,
 		flags = dev_get_flags(netdev);
 		if (!(flags & IFF_RUNNING))
 			continue;
-ipv6_retry:
-		if (out_buf_len <
-		    nbytes + sizeof(struct network_interface_info_ioctl_rsp)) {
-			rtnl_unlock();
-			return -ENOSPC;
-		}
 
-		nii_rsp = (struct network_interface_info_ioctl_rsp *)
-				&rsp->Buffer[nbytes];
-		nii_rsp->IfIndex = cpu_to_le32(netdev->ifindex);
-
-		nii_rsp->Capability = 0;
-		if (netdev->real_num_tx_queues > 1)
-			nii_rsp->Capability |= cpu_to_le32(RSS_CAPABLE);
-		if (ksmbd_rdma_capable_netdev(netdev))
-			nii_rsp->Capability |= cpu_to_le32(RDMA_CAPABLE);
-
-		nii_rsp->Next = cpu_to_le32(152);
-		nii_rsp->Reserved = 0;
-
-		if (netdev->ethtool_ops->get_link_ksettings) {
-			struct ethtool_link_ksettings cmd;
-
-			netdev->ethtool_ops->get_link_ksettings(netdev, &cmd);
+		if (!__ethtool_get_link_ksettings(netdev, &cmd) &&
+		    cmd.base.speed && cmd.base.speed != SPEED_UNKNOWN) {
 			speed = cmd.base.speed;
 		} else {
 			ksmbd_debug(SMB, "%s %s\n", netdev->name,
 				    "speed is unknown, defaulting to 1Gb/sec");
 			speed = SPEED_1000;
 		}
-
 		speed *= 1000000;
-		nii_rsp->LinkSpeed = cpu_to_le64(speed);
 
-		sockaddr_storage = (struct sockaddr_storage_rsp *)
-					nii_rsp->SockAddr_Storage;
-		memset(sockaddr_storage, 0, 128);
+		/*
+		 * Query IPv4 and IPv6 independently; emit an entry only when a
+		 * usable address exists, so an interface missing one family is
+		 * still reported for the other and 0.0.0.0 / :: placeholders are
+		 * never advertised.
+		 */
+		idev = __in_dev_get_rtnl(netdev);
+		if (idev)
+			ip4 = idev_ipv4_address(idev);
 
-		if (!ipv4_set) {
-			struct in_device *idev;
-
-			sockaddr_storage->Family = cpu_to_le16(INTERNETWORK);
-			sockaddr_storage->addr4.Port = 0;
-
-			idev = __in_dev_get_rtnl(netdev);
-			if (!idev)
-				continue;
-			sockaddr_storage->addr4.IPv4address =
-						idev_ipv4_address(idev);
-			nbytes += sizeof(struct network_interface_info_ioctl_rsp);
-			ipv4_set = true;
-			goto ipv6_retry;
-		} else {
-			struct inet6_dev *idev6;
-			struct inet6_ifaddr *ifa;
-			__u8 *ipv6_addr = sockaddr_storage->addr6.IPv6address;
-
-			sockaddr_storage->Family = cpu_to_le16(INTERNETWORKV6);
-			sockaddr_storage->addr6.Port = 0;
-			sockaddr_storage->addr6.FlowInfo = 0;
-
-			idev6 = __in6_dev_get(netdev);
-			if (!idev6)
-				continue;
-
-			list_for_each_entry(ifa, &idev6->addr_list, if_list) {
-				if (ifa->flags & (IFA_F_TENTATIVE |
-							IFA_F_DEPRECATED))
+		idev6 = __in6_dev_get(netdev);
+		if (idev6) {
+			rcu_read_lock();
+			list_for_each_entry_rcu(ifa, &idev6->addr_list, if_list) {
+				if (ifa->flags & (IFA_F_TENTATIVE | IFA_F_DEPRECATED))
 					continue;
-				memcpy(ipv6_addr, ifa->addr.s6_addr, 16);
+				memcpy(&ip6, ifa->addr.s6_addr, sizeof(ip6));
+				have_ip6 = true;
 				break;
 			}
+			rcu_read_unlock();
+		}
+
+		if (ip4) {
+			if (out_buf_len <
+			    nbytes + sizeof(struct network_interface_info_ioctl_rsp)) {
+				rtnl_unlock();
+				return -ENOSPC;
+			}
+
+			nii_rsp = ksmbd_iface_entry_init(rsp, nbytes, netdev, speed);
+			sockaddr_storage = (struct sockaddr_storage_rsp *)nii_rsp->SockAddr_Storage;
+			sockaddr_storage->Family = INTERNETWORK;
+			sockaddr_storage->addr4.Port = 0;
+			sockaddr_storage->addr4.IPv4Address = ip4;
+			nbytes += sizeof(struct network_interface_info_ioctl_rsp);
+		}
+
+		if (have_ip6) {
+			if (out_buf_len <
+			    nbytes + sizeof(struct network_interface_info_ioctl_rsp)) {
+				rtnl_unlock();
+				return -ENOSPC;
+			}
+
+			nii_rsp = ksmbd_iface_entry_init(rsp, nbytes, netdev, speed);
+			sockaddr_storage = (struct sockaddr_storage_rsp *)nii_rsp->SockAddr_Storage;
+			sockaddr_storage->Family = INTERNETWORKV6;
+			sockaddr_storage->addr6.Port = 0;
+			sockaddr_storage->addr6.FlowInfo = 0;
+			memcpy(sockaddr_storage->addr6.IPv6Address, ip6.s6_addr, 16);
 			sockaddr_storage->addr6.ScopeId = 0;
 			nbytes += sizeof(struct network_interface_info_ioctl_rsp);
 		}
 	}
 	rtnl_unlock();
 
-	/* zero if this is last one */
-	if (nii_rsp)
+	/* Clear Next of the last committed entry to terminate the list. */
+	if (nbytes > 0) {
+		nii_rsp = (struct network_interface_info_ioctl_rsp *)
+			  &rsp->Buffer[nbytes - sizeof(*nii_rsp)];
 		nii_rsp->Next = 0;
+	}
 
 	rsp->PersistentFileId = SMB2_NO_FID;
 	rsp->VolatileFileId = SMB2_NO_FID;

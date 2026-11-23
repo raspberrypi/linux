@@ -1316,11 +1316,25 @@ static void atom_index_iio(struct atom_context *ctx, int base)
 	ctx->iio = kzalloc(2 * 256, GFP_KERNEL);
 	if (!ctx->iio)
 		return;
-	while (CU8(base) == ATOM_IIO_START) {
-		ctx->iio[CU8(base + 1)] = base + 2;
+	while (base + 1 < ctx->bios_size && CU8(base) == ATOM_IIO_START) {
+		uint8_t index = CU8(base + 1);
+		int start = base + 2;
 		base += 2;
-		while (CU8(base) != ATOM_IIO_END)
-			base += atom_iio_len[CU8(base)];
+		while (base < ctx->bios_size && CU8(base) != ATOM_IIO_END) {
+			uint8_t op = CU8(base);
+
+			/*
+			 * Unknown opcode: its length is unknown so the byte
+			 * stream cannot be resynced reliably.
+			 */
+			if (op >= ARRAY_SIZE(atom_iio_len))
+				return;
+			base += atom_iio_len[op];
+		}
+		if (base >= ctx->bios_size)
+			return;
+		/* Only index well-formed methods, others stay 0 */
+		ctx->iio[index] = start;
 		base += 3;
 	}
 }
@@ -1379,6 +1393,11 @@ static void atom_get_vbios_date(struct atom_context *ctx)
 	unsigned char *date_in_rom;
 
 	p_rom = ctx->bios;
+
+	if (ctx->bios_size < OFFSET_TO_VBIOS_DATE + 14) {
+		ctx->date[0] = '\0';
+		return;
+	}
 
 	date_in_rom = p_rom + OFFSET_TO_VBIOS_DATE;
 
@@ -1443,17 +1462,24 @@ static void atom_get_vbios_pn(struct atom_context *ctx)
 		vbios_str = p_rom + OFFSET_TO_VBIOS_PART_NUMBER;
 	}
 
-	if (*vbios_str == 0) {
+	if (vbios_str >= p_rom + ctx->bios_size)
+		vbios_str = NULL;
+
+	if (vbios_str == NULL || *vbios_str == 0) {
 		vbios_str = atom_find_str_in_rom(ctx, BIOS_ATOM_PREFIX, 3, 1024, 64);
 		if (vbios_str == NULL)
 			vbios_str += sizeof(BIOS_ATOM_PREFIX) - 1;
+		if (vbios_str >= p_rom + ctx->bios_size)
+			vbios_str = NULL;
 	}
 	if (vbios_str != NULL && *vbios_str == 0)
 		vbios_str++;
 
 	if (vbios_str != NULL) {
 		count = 0;
-		while ((count < BIOS_STRING_LENGTH) && vbios_str[count] >= ' ' &&
+		while ((count < BIOS_STRING_LENGTH) &&
+		       vbios_str + count < p_rom + ctx->bios_size &&
+		       vbios_str[count] >= ' ' &&
 		       vbios_str[count] <= 'z') {
 			ctx->vbios_pn[count] = vbios_str[count];
 			count++;
@@ -1461,8 +1487,6 @@ static void atom_get_vbios_pn(struct atom_context *ctx)
 
 		ctx->vbios_pn[count] = 0;
 	}
-
-	pr_info("ATOM BIOS: %s\n", ctx->vbios_pn);
 }
 
 static void atom_get_vbios_version(struct atom_context *ctx)
@@ -1488,16 +1512,69 @@ static void atom_get_vbios_version(struct atom_context *ctx)
 	/* find anchor ATOMBIOSBK-AMD */
 	vbios_ver =
 		atom_find_str_in_rom(ctx, BIOS_VERSION_PREFIX, start, end, 64);
-	if (vbios_ver != NULL) {
-		/* skip ATOMBIOSBK-AMD VER */
-		vbios_ver += 18;
+	if (vbios_ver != NULL)
+		vbios_ver += 18; /* skip ATOMBIOSBK-AMD VER */
+
+	if (vbios_ver != NULL && vbios_ver + STRLEN_NORMAL <= p_rom + ctx->bios_size) {
 		memcpy(ctx->vbios_ver_str, vbios_ver, STRLEN_NORMAL);
 	} else {
 		ctx->vbios_ver_str[0] = '\0';
 	}
 }
 
-struct atom_context *amdgpu_atom_parse(struct card_info *card, void *bios)
+static void atom_get_vbios_build(struct atom_context *ctx)
+{
+	unsigned char *atom_rom_hdr;
+	unsigned char *str;
+	uint16_t base, len;
+
+	base = CU16(ATOM_ROM_TABLE_PTR);
+	atom_rom_hdr = CSTR(base);
+
+	if ((uint32_t)base + ATOM_ROM_CFG_PTR + sizeof(uint16_t) > ctx->bios_size)
+		return;
+
+	str = CSTR(CU16(base + ATOM_ROM_CFG_PTR));
+	if (str >= atom_rom_hdr)
+		return;
+
+	/* Skip config string */
+	while (str < atom_rom_hdr && *str++)
+		;
+	/* Skip change list string */
+	while (str < atom_rom_hdr && *str++)
+		;
+
+	len = min(atom_rom_hdr - str, STRLEN_NORMAL);
+	if (len)
+		strscpy(ctx->build_num, str, len);
+}
+
+static inline void atom_print_vbios_info(struct atom_context *ctx)
+{
+	char vbios_info[256];
+	int off = 0;
+
+	if (ctx->vbios_pn[0])
+		off += scnprintf(vbios_info + off, sizeof(vbios_info) - off,
+				 "%s", ctx->vbios_pn);
+	if (ctx->build_num[0])
+		off += scnprintf(vbios_info + off, sizeof(vbios_info) - off,
+				 "%sbuild: %s", off ? ", " : "",
+				 ctx->build_num);
+	if (ctx->vbios_ver_str[0])
+		off += scnprintf(vbios_info + off, sizeof(vbios_info) - off,
+				 "%sver: %s", off ? ", " : "",
+				 ctx->vbios_ver_str);
+	if (ctx->date[0])
+		off += scnprintf(vbios_info + off, sizeof(vbios_info) - off,
+				 "%s%.10s", off ? ", " : "",
+				 ctx->date);
+	if (off)
+		drm_info(ctx->card->dev, "ATOM BIOS: %s\n", vbios_info);
+}
+
+struct atom_context *amdgpu_atom_parse(struct card_info *card, void *bios, uint32_t bios_size)
 {
 	int base;
 	struct atom_context *ctx =
@@ -1511,6 +1588,7 @@ struct atom_context *amdgpu_atom_parse(struct card_info *card, void *bios)
 
 	ctx->card = card;
 	ctx->bios = bios;
+	ctx->bios_size = bios_size;
 
 	if (CU16(0) != ATOM_BIOS_MAGIC) {
 		pr_info("Invalid BIOS magic\n");
@@ -1557,6 +1635,9 @@ struct atom_context *amdgpu_atom_parse(struct card_info *card, void *bios)
 	atom_get_vbios_pn(ctx);
 	atom_get_vbios_date(ctx);
 	atom_get_vbios_version(ctx);
+	atom_get_vbios_build(ctx);
+
+	atom_print_vbios_info(ctx);
 
 	return ctx;
 }

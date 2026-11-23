@@ -1482,7 +1482,6 @@ int attr_wof_frame_info(struct ntfs_inode *ni, struct ATTRIB *attr,
 		pgoff_t index = vbo[i] >> PAGE_SHIFT;
 
 		if (index != folio->index) {
-			struct page *page = &folio->page;
 			u64 from = vbo[i] & ~(u64)(PAGE_SIZE - 1);
 			u64 to = min(from + PAGE_SIZE, wof_size);
 
@@ -1492,8 +1491,7 @@ int attr_wof_frame_info(struct ntfs_inode *ni, struct ATTRIB *attr,
 			if (err)
 				goto out1;
 
-			err = ntfs_bio_pages(sbi, run, &page, 1, from,
-					     to - from, REQ_OP_READ);
+			err = ntfs_read_run(sbi, run, addr, from, to - from);
 			if (err) {
 				folio->index = -1;
 				goto out1;
@@ -1868,7 +1866,7 @@ out:
 
 		valid_size = le64_to_cpu(attr_b->nres.valid_size);
 		if (new_valid != valid_size) {
-			attr_b->nres.valid_size = cpu_to_le64(valid_size);
+			attr_b->nres.valid_size = cpu_to_le64(new_valid);
 			mi_b->dirty = true;
 		}
 	}
@@ -2438,8 +2436,8 @@ int attr_insert_range(struct ntfs_inode *ni, u64 vbo, u64 bytes)
 			char *data = Add2Ptr(attr_b,
 					     le16_to_cpu(attr_b->res.data_off));
 
-			memmove(data + bytes, data, bytes);
-			memset(data, 0, bytes);
+			memmove(data + vbo + bytes, data + vbo, data_size - vbo);
+			memset(data + vbo, 0, bytes);
 			goto done;
 		}
 

@@ -173,6 +173,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/bitfield.h>
 #include <linux/module.h>
 #include <linux/timer.h>
 #include <linux/time64.h>
@@ -472,8 +473,8 @@ struct ioc_gq {
 	 *
 	 * When an idle cgroup becomes active its `active` goes from 0 to
 	 * `weight`.  `inuse` is the surplus adjusted active weight.
-	 * `active` and `inuse` are used to calculate `hweight_active` and
-	 * `hweight_inuse`.
+	 * `active` and `inuse` determine the hierarchical weights cached in
+	 * `hweight_cache`.
 	 *
 	 * `last_inuse` remembers `inuse` while an iocg is idle to persist
 	 * surplus adjustments.
@@ -520,7 +521,9 @@ struct ioc_gq {
 	u64				child_active_sum;
 	u64				child_inuse_sum;
 	u64				child_adjusted_sum;
-	int				hweight_gen;
+	/* Generation in bits 63:32; active - 1 and inuse - 1 in 31:16/15:0. */
+	atomic64_t			hweight_cache;
+	/* Donation workspace, protected by ioc->lock. */
 	u32				hweight_active;
 	u32				hweight_inuse;
 	u32				hweight_donating;
@@ -727,24 +730,52 @@ static void iocg_commit_bio(struct ioc_gq *iocg, struct bio *bio,
 	put_cpu_ptr(gcs);
 }
 
-static void iocg_lock(struct ioc_gq *iocg, bool lock_ioc, unsigned long *flags)
+/*
+ * The hierarchical weights are in [1, WEIGHT_ONE] and the generation is a
+ * 32-bit counter.  Pack generation and both weights into one 64-bit value so
+ * that a reader or a refresher always observes a complete snapshot:
+ *
+ *   bits 63:32  generation
+ *   bits 31:16  hweight_active - 1
+ *   bits 15:0   hweight_inuse - 1
+ */
+#define HWEIGHT_GEN_MASK	GENMASK_ULL(63, 32)
+#define HWEIGHT_ACTIVE_MASK	GENMASK_ULL(31, 16)
+#define HWEIGHT_INUSE_MASK	GENMASK_ULL(15, 0)
+
+static inline u64 hweight_cache_pack(u32 gen, u32 active, u32 inuse)
 {
-	if (lock_ioc) {
-		spin_lock_irqsave(&iocg->ioc->lock, *flags);
-		spin_lock(&iocg->waitq.lock);
-	} else {
-		spin_lock_irqsave(&iocg->waitq.lock, *flags);
-	}
+	return FIELD_PREP(HWEIGHT_GEN_MASK, gen) |
+	       FIELD_PREP(HWEIGHT_ACTIVE_MASK, active - 1) |
+	       FIELD_PREP(HWEIGHT_INUSE_MASK, inuse - 1);
 }
 
-static void iocg_unlock(struct ioc_gq *iocg, bool unlock_ioc, unsigned long *flags)
+static inline void hweight_cache_unpack(u64 cache, u32 *genp, u32 *activep,
+					u32 *inusep)
 {
-	if (unlock_ioc) {
-		spin_unlock(&iocg->waitq.lock);
-		spin_unlock_irqrestore(&iocg->ioc->lock, *flags);
-	} else {
-		spin_unlock_irqrestore(&iocg->waitq.lock, *flags);
-	}
+	if (genp)
+		*genp = FIELD_GET(HWEIGHT_GEN_MASK, cache);
+	if (activep)
+		*activep = FIELD_GET(HWEIGHT_ACTIVE_MASK, cache) + 1;
+	if (inusep)
+		*inusep = FIELD_GET(HWEIGHT_INUSE_MASK, cache) + 1;
+}
+
+/* Decode the published weights without refreshing the cache. */
+static inline void iocg_hweight_cache(struct ioc_gq *iocg, u32 *activep,
+				      u32 *inusep)
+{
+	hweight_cache_unpack(atomic64_read(&iocg->hweight_cache), NULL,
+			     activep, inusep);
+}
+
+/* Decode the cached inuse weight; only used by tracepoints. */
+static inline u32 iocg_hweight_cache_inuse(struct ioc_gq *iocg)
+{
+	u32 inuse;
+
+	iocg_hweight_cache(iocg, NULL, &inuse);
+	return inuse;
 }
 
 #define CREATE_TRACE_POINTS
@@ -1174,12 +1205,15 @@ static void current_hweight(struct ioc_gq *iocg, u32 *hw_activep, u32 *hw_inusep
 {
 	struct ioc *ioc = iocg->ioc;
 	int lvl;
-	u32 hwa, hwi;
-	int ioc_gen;
+	u32 hwa, hwi, ioc_gen, cache_gen;
+	u64 cache;
 
-	/* hot path - if uptodate, use cached */
-	ioc_gen = atomic_read(&ioc->hweight_gen);
-	if (ioc_gen == iocg->hweight_gen)
+	ioc_gen = (u32)atomic_read(&ioc->hweight_gen);
+
+	/* hot path - if uptodate, use the cached snapshot */
+	cache = atomic64_read(&iocg->hweight_cache);
+	hweight_cache_unpack(cache, &cache_gen, &hwa, &hwi);
+	if (cache_gen == ioc_gen)
 		goto out;
 
 	/*
@@ -1214,14 +1248,20 @@ static void current_hweight(struct ioc_gq *iocg, u32 *hw_activep, u32 *hw_inusep
 		hwi = div64_u64((u64)hwi * inuse, inuse_sum);
 	}
 
-	iocg->hweight_active = max_t(u32, hwa, 1);
-	iocg->hweight_inuse = max_t(u32, hwi, 1);
-	iocg->hweight_gen = ioc_gen;
+	hwa = max_t(u32, hwa, 1);
+	hwi = max_t(u32, hwi, 1);
+	/*
+	 * Publish the generation and both weights as one atomic snapshot.
+	 * A concurrent refresher may overwrite this with its own snapshot,
+	 * but the generation travels with the weights so the next reader
+	 * detects the mismatch and refreshes again.
+	 */
+	atomic64_set(&iocg->hweight_cache, hweight_cache_pack(ioc_gen, hwa, hwi));
 out:
 	if (hw_activep)
-		*hw_activep = iocg->hweight_active;
+		*hw_activep = hwa;
 	if (hw_inusep)
-		*hw_inusep = iocg->hweight_inuse;
+		*hw_inusep = hwi;
 }
 
 /*
@@ -1269,7 +1309,8 @@ static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 {
 	struct ioc *ioc = iocg->ioc;
 	u64 __maybe_unused last_period, cur_period;
-	u64 vtime, vtarget;
+	u64 vtime, vtarget, cache;
+	u32 active, inuse;
 	int i;
 
 	/*
@@ -1319,11 +1360,16 @@ static bool iocg_activate(struct ioc_gq *iocg, struct ioc_now *now)
 	vtime = vtarget;
 
 	/*
-	 * Activate, propagate weight and start period timer if not
-	 * running.  Reset hweight_gen to avoid accidental match from
-	 * wrapping.
+	 * Activate, propagate weight and start period timer if not running.
+	 * Invalidate the cached generation to avoid an accidental match from
+	 * wrapping.  Keep the last published weights so that the activation
+	 * tracepoint can report them; the next current_hweight() recomputes.
 	 */
-	iocg->hweight_gen = atomic_read(&ioc->hweight_gen) - 1;
+	cache = atomic64_read(&iocg->hweight_cache);
+	hweight_cache_unpack(cache, NULL, &active, &inuse);
+	atomic64_set(&iocg->hweight_cache,
+		     hweight_cache_pack((u32)(atomic_read(&ioc->hweight_gen) - 1),
+					active, inuse));
 	list_add(&iocg->active_list, &ioc->active_iocgs);
 
 	propagate_weights(iocg, iocg->weight,
@@ -1589,9 +1635,17 @@ static enum hrtimer_restart iocg_waitq_timer_fn(struct hrtimer *timer)
 
 	ioc_now(iocg->ioc, &now);
 
-	iocg_lock(iocg, pay_debt, &flags);
-	iocg_kick_waitq(iocg, pay_debt, &now);
-	iocg_unlock(iocg, pay_debt, &flags);
+	if (pay_debt) {
+		spin_lock_irqsave(&iocg->ioc->lock, flags);
+		spin_lock(&iocg->waitq.lock);
+		iocg_kick_waitq(iocg, pay_debt, &now);
+		spin_unlock(&iocg->waitq.lock);
+		spin_unlock_irqrestore(&iocg->ioc->lock, flags);
+	} else {
+		spin_lock_irqsave(&iocg->waitq.lock, flags);
+		iocg_kick_waitq(iocg, pay_debt, &now);
+		spin_unlock_irqrestore(&iocg->waitq.lock, flags);
+	}
 
 	return HRTIMER_NORESTART;
 }
@@ -2058,7 +2112,7 @@ static void transfer_surpluses(struct list_head *surpluses, struct ioc_now *now)
 
 		TRACE_IOCG_PATH(inuse_transfer, iocg, now,
 				iocg->inuse, inuse,
-				iocg->hweight_inuse,
+				iocg_hweight_cache_inuse(iocg),
 				iocg->hweight_after_donation);
 
 		__propagate_weights(iocg, iocg->active, inuse, true, now);
@@ -2373,7 +2427,7 @@ static void ioc_timer_fn(struct timer_list *timer)
 				 */
 				TRACE_IOCG_PATH(inuse_shortage, iocg, &now,
 						iocg->inuse, iocg->active,
-						iocg->hweight_inuse, new_hwi);
+						old_hwi, new_hwi);
 
 				__propagate_weights(iocg, iocg->active,
 						    iocg->active, true, &now);
@@ -2548,6 +2602,7 @@ static void calc_vtime_cost_builtin(struct bio *bio, struct ioc_gq *iocg,
 		coef_randio	= ioc->params.lcoefs[LCOEF_RRANDIO];
 		coef_page	= ioc->params.lcoefs[LCOEF_RPAGE];
 		break;
+	case REQ_OP_ZONE_APPEND:
 	case REQ_OP_WRITE:
 		coef_seqio	= ioc->params.lcoefs[LCOEF_WSEQIO];
 		coef_randio	= ioc->params.lcoefs[LCOEF_WRANDIO];
@@ -2591,6 +2646,7 @@ static void calc_size_vtime_cost_builtin(struct request *rq, struct ioc *ioc,
 	case REQ_OP_READ:
 		*costp = pages * ioc->params.lcoefs[LCOEF_RPAGE];
 		break;
+	case REQ_OP_ZONE_APPEND:
 	case REQ_OP_WRITE:
 		*costp = pages * ioc->params.lcoefs[LCOEF_WPAGE];
 		break;
@@ -2607,6 +2663,88 @@ static u64 calc_size_vtime_cost(struct request *rq, struct ioc *ioc)
 	return cost;
 }
 
+enum over_budget_action {
+	action_retry,
+	action_commit,
+	action_wait,
+	action_return,
+};
+
+static enum over_budget_action
+iocg_handle_over_budget(struct rq_qos *rqos, struct ioc_gq *iocg,
+			struct bio *bio, struct ioc_now *now,
+			struct iocg_wait *wait, bool use_debt, bool ioc_locked,
+			u64 abs_cost, u64 cost)
+{
+	lockdep_assert_held(&iocg->waitq.lock);
+
+	/*
+	 * @iocg must stay activated for debt and waitq handling. Deactivation
+	 * is synchronized against both ioc->lock and waitq.lock and we won't
+	 * get deactivated as long as we're waiting or have debt, so we're good
+	 * if we're activated here. In the unlikely cases that we aren't, just
+	 * issue the IO.
+	 */
+	if (unlikely(list_empty(&iocg->active_list)))
+		return action_commit;
+
+	/*
+	 * We're over budget. If @bio has to be issued regardless, remember
+	 * the abs_cost instead of advancing vtime. iocg_kick_waitq() will pay
+	 * off the debt before waking more IOs.
+	 *
+	 * This way, the debt is continuously paid off each period with the
+	 * actual budget available to the cgroup. If we just wound vtime, we
+	 * would incorrectly use the current hw_inuse for the entire amount
+	 * which, for example, can lead to the cgroup staying blocked for a
+	 * long time even with substantially raised hw_inuse.
+	 *
+	 * An iocg with vdebt should stay online so that the timer can keep
+	 * deducting its vdebt and [de]activate use_delay mechanism
+	 * accordingly. We don't want to race against the timer trying to
+	 * clear them and leave @iocg inactive w/ dangling use_delay heavily
+	 * penalizing the cgroup and its descendants.
+	 */
+	if (use_debt) {
+		iocg_incur_debt(iocg, abs_cost, now);
+		if (iocg_kick_delay(iocg, now))
+			blkcg_schedule_throttle(rqos->disk,
+						(bio->bi_opf & REQ_SWAP) ==
+							REQ_SWAP);
+		return action_return;
+	}
+
+	/* guarantee that iocgs w/ waiters have maximum inuse */
+	if (!iocg->abs_vdebt && iocg->inuse != iocg->active) {
+		if (!ioc_locked)
+			return action_retry;
+		lockdep_assert_held(&iocg->ioc->lock);
+		propagate_weights(iocg, iocg->active, iocg->active, true, now);
+	}
+
+	/*
+	 * Append self to the waitq and schedule the wakeup timer if we're
+	 * the first waiter.  The timer duration is calculated based on the
+	 * current vrate.  vtime and hweight changes can make it too short
+	 * or too long.  Each wait entry records the absolute cost it's
+	 * waiting for to allow re-evaluation using a custom wait entry.
+	 *
+	 * If too short, the timer simply reschedules itself.  If too long,
+	 * the period timer will notice and trigger wakeups.
+	 *
+	 * All waiters are on iocg->waitq and the wait states are
+	 * synchronized using waitq.lock.
+	 */
+	init_wait_func(&wait->wait, iocg_wake_fn);
+	wait->bio = bio;
+	wait->abs_cost = abs_cost;
+	wait->committed = false; /* will be set true by waker */
+
+	__add_wait_queue_entry_tail(&iocg->waitq, &wait->wait);
+	iocg_kick_waitq(iocg, ioc_locked, now);
+	return action_wait;
+}
+
 static void ioc_rqos_throttle(struct rq_qos *rqos, struct bio *bio)
 {
 	struct blkcg_gq *blkg = bio->bi_blkg;
@@ -2616,6 +2754,7 @@ static void ioc_rqos_throttle(struct rq_qos *rqos, struct bio *bio)
 	struct iocg_wait wait;
 	u64 abs_cost, cost, vtime;
 	bool use_debt, ioc_locked;
+	enum over_budget_action action;
 	unsigned long flags;
 
 	/* bypass IOs if disabled, still initializing, or for root cgroup */
@@ -2655,81 +2794,33 @@ static void ioc_rqos_throttle(struct rq_qos *rqos, struct bio *bio)
 	use_debt = bio_issue_as_root_blkg(bio) || fatal_signal_pending(current);
 	ioc_locked = use_debt || READ_ONCE(iocg->abs_vdebt);
 retry_lock:
-	iocg_lock(iocg, ioc_locked, &flags);
-
-	/*
-	 * @iocg must stay activated for debt and waitq handling. Deactivation
-	 * is synchronized against both ioc->lock and waitq.lock and we won't
-	 * get deactivated as long as we're waiting or has debt, so we're good
-	 * if we're activated here. In the unlikely cases that we aren't, just
-	 * issue the IO.
-	 */
-	if (unlikely(list_empty(&iocg->active_list))) {
-		iocg_unlock(iocg, ioc_locked, &flags);
+	if (ioc_locked) {
+		spin_lock_irqsave(&iocg->ioc->lock, flags);
+		spin_lock(&iocg->waitq.lock);
+		action = iocg_handle_over_budget(rqos, iocg, bio, &now, &wait,
+						 use_debt, ioc_locked, abs_cost,
+						 cost);
+		spin_unlock(&iocg->waitq.lock);
+		spin_unlock_irqrestore(&iocg->ioc->lock, flags);
+	} else {
+		spin_lock_irqsave(&iocg->waitq.lock, flags);
+		action = iocg_handle_over_budget(rqos, iocg, bio, &now, &wait,
+						 use_debt, ioc_locked, abs_cost,
+						 cost);
+		spin_unlock_irqrestore(&iocg->waitq.lock, flags);
+	}
+	switch (action) {
+	case action_retry:
+		ioc_locked = true;
+		goto retry_lock;
+	case action_commit:
 		iocg_commit_bio(iocg, bio, abs_cost, cost);
 		return;
-	}
-
-	/*
-	 * We're over budget. If @bio has to be issued regardless, remember
-	 * the abs_cost instead of advancing vtime. iocg_kick_waitq() will pay
-	 * off the debt before waking more IOs.
-	 *
-	 * This way, the debt is continuously paid off each period with the
-	 * actual budget available to the cgroup. If we just wound vtime, we
-	 * would incorrectly use the current hw_inuse for the entire amount
-	 * which, for example, can lead to the cgroup staying blocked for a
-	 * long time even with substantially raised hw_inuse.
-	 *
-	 * An iocg with vdebt should stay online so that the timer can keep
-	 * deducting its vdebt and [de]activate use_delay mechanism
-	 * accordingly. We don't want to race against the timer trying to
-	 * clear them and leave @iocg inactive w/ dangling use_delay heavily
-	 * penalizing the cgroup and its descendants.
-	 */
-	if (use_debt) {
-		iocg_incur_debt(iocg, abs_cost, &now);
-		if (iocg_kick_delay(iocg, &now))
-			blkcg_schedule_throttle(rqos->disk,
-					(bio->bi_opf & REQ_SWAP) == REQ_SWAP);
-		iocg_unlock(iocg, ioc_locked, &flags);
+	case action_return:
 		return;
+	case action_wait:
+		break;
 	}
-
-	/* guarantee that iocgs w/ waiters have maximum inuse */
-	if (!iocg->abs_vdebt && iocg->inuse != iocg->active) {
-		if (!ioc_locked) {
-			iocg_unlock(iocg, false, &flags);
-			ioc_locked = true;
-			goto retry_lock;
-		}
-		propagate_weights(iocg, iocg->active, iocg->active, true,
-				  &now);
-	}
-
-	/*
-	 * Append self to the waitq and schedule the wakeup timer if we're
-	 * the first waiter.  The timer duration is calculated based on the
-	 * current vrate.  vtime and hweight changes can make it too short
-	 * or too long.  Each wait entry records the absolute cost it's
-	 * waiting for to allow re-evaluation using a custom wait entry.
-	 *
-	 * If too short, the timer simply reschedules itself.  If too long,
-	 * the period timer will notice and trigger wakeups.
-	 *
-	 * All waiters are on iocg->waitq and the wait states are
-	 * synchronized using waitq.lock.
-	 */
-	init_waitqueue_func_entry(&wait.wait, iocg_wake_fn);
-	wait.wait.private = current;
-	wait.bio = bio;
-	wait.abs_cost = abs_cost;
-	wait.committed = false;	/* will be set true by waker */
-
-	__add_wait_queue_entry_tail(&iocg->waitq, &wait.wait);
-	iocg_kick_waitq(iocg, ioc_locked, &now);
-
-	iocg_unlock(iocg, ioc_locked, &flags);
 
 	while (true) {
 		set_current_state(TASK_UNINTERRUPTIBLE);
@@ -2827,6 +2918,7 @@ static void ioc_rqos_done(struct rq_qos *rqos, struct request *rq)
 		pidx = QOS_RLAT;
 		rw = READ;
 		break;
+	case REQ_OP_ZONE_APPEND:
 	case REQ_OP_WRITE:
 		pidx = QOS_WLAT;
 		rw = WRITE;
@@ -3005,6 +3097,9 @@ static void ioc_pd_init(struct blkg_policy_data *pd)
 	INIT_LIST_HEAD(&iocg->active_list);
 	INIT_LIST_HEAD(&iocg->walk_list);
 	INIT_LIST_HEAD(&iocg->surplus_list);
+	atomic64_set(&iocg->hweight_cache,
+		     hweight_cache_pack((u32)(atomic_read(&ioc->hweight_gen) - 1),
+					WEIGHT_ONE, WEIGHT_ONE));
 	iocg->hweight_active = WEIGHT_ONE;
 	iocg->hweight_inuse = WEIGHT_ONE;
 

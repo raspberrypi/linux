@@ -812,8 +812,8 @@ void mt76_reset_device(struct mt76_dev *dev)
 			continue;
 
 		wcid->sta = 0;
-		mt76_wcid_cleanup(dev, wcid);
 		rcu_assign_pointer(dev->wcid[i], NULL);
+		mt76_wcid_cleanup(dev, wcid);
 	}
 	rcu_read_unlock();
 
@@ -1375,6 +1375,7 @@ mt76_check_sta(struct mt76_dev *dev, struct sk_buff *skb)
 	struct ieee80211_hw *hw;
 	struct mt76_wcid *wcid = status->wcid;
 	u8 tidno = status->qos_ctl & IEEE80211_QOS_CTL_TID_MASK;
+	int signal;
 	bool ps;
 
 	hw = mt76_phy_hw(dev, status->phy_idx);
@@ -1392,8 +1393,9 @@ mt76_check_sta(struct mt76_dev *dev, struct sk_buff *skb)
 
 	sta = container_of((void *)wcid, struct ieee80211_sta, drv_priv);
 
-	if (status->signal <= 0)
-		ewma_signal_add(&wcid->rssi, -status->signal);
+	signal = mt76_rx_signal(status->chains, status->chain_signal);
+	if (signal <= 0 && signal > -128)
+		ewma_signal_add(&wcid->rssi, -signal);
 
 	wcid->inactive_count = 0;
 
@@ -1641,9 +1643,8 @@ void mt76_wcid_cleanup(struct mt76_dev *dev, struct mt76_wcid *wcid)
 
 	mt76_tx_status_lock(dev, &list);
 	mt76_tx_status_skb_get(dev, wcid, -1, &list);
-	mt76_tx_status_unlock(dev, &list);
-
 	idr_destroy(&wcid->pktid);
+	mt76_tx_status_unlock(dev, &list);
 
 	spin_lock_bh(&phy->tx_lock);
 

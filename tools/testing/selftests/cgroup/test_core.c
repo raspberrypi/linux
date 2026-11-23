@@ -5,6 +5,8 @@
 #include <linux/sched.h>
 #include <sys/types.h>
 #include <sys/mman.h>
+#include <sys/mount.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -842,6 +844,38 @@ cleanup:
 	return ret;
 }
 
+static int setup_named_v1_root(char *root, size_t len, const char *name)
+{
+	char options[PATH_MAX];
+	int r;
+
+	r = snprintf(root, len, "/mnt/cg_selftest");
+	if (r < 0)
+		return r;
+
+	r = snprintf(options, sizeof(options), "none,name=%s", name);
+	if (r < 0)
+		return r;
+
+	r = mkdir(root, 0755);
+	if (r < 0 && errno != EEXIST)
+		return r;
+
+	r = mount("none", root, "cgroup", 0, options);
+	if (r < 0)
+		return r;
+
+	return 0;
+}
+
+static void cleanup_named_v1_root(char *root)
+{
+	if (!cg_test_v1_named)
+		return;
+	umount(root);
+	rmdir(root);
+}
+
 #define T(x) { x, #x }
 struct corecg_test {
 	int (*fn)(const char *root);
@@ -865,15 +899,22 @@ struct corecg_test {
 int main(int argc, char *argv[])
 {
 	char root[PATH_MAX];
-	int i, ret = EXIT_SUCCESS;
+	int i;
 
-	if (cg_find_unified_root(root, sizeof(root), &nsdelegate))
-		ksft_exit_skip("cgroup v2 isn't mounted\n");
+	ksft_print_header();
+	if (cg_find_unified_root(root, sizeof(root), &nsdelegate)) {
+		if (setup_named_v1_root(root, sizeof(root), CG_NAMED_NAME))
+			ksft_exit_skip("cgroup v2 isn't mounted and could not setup named v1 hierarchy\n");
+		cg_test_v1_named = true;
+		goto post_v2_setup;
+	}
 
 	if (cg_read_strstr(root, "cgroup.subtree_control", "memory"))
 		if (cg_write(root, "cgroup.subtree_control", "+memory"))
 			ksft_exit_skip("Failed to set memory controller\n");
 
+post_v2_setup:
+	ksft_set_plan(ARRAY_SIZE(tests));
 	for (i = 0; i < ARRAY_SIZE(tests); i++) {
 		switch (tests[i].fn(root)) {
 		case KSFT_PASS:
@@ -883,11 +924,11 @@ int main(int argc, char *argv[])
 			ksft_test_result_skip("%s\n", tests[i].name);
 			break;
 		default:
-			ret = EXIT_FAILURE;
 			ksft_test_result_fail("%s\n", tests[i].name);
 			break;
 		}
 	}
 
-	return ret;
+	cleanup_named_v1_root(root);
+	ksft_finished();
 }

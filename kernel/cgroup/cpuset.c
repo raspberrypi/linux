@@ -616,12 +616,25 @@ static int validate_change(struct cpuset *cur, struct cpuset *trial)
 
 	/*
 	 * We can't shrink if we won't have enough room for SCHED_DEADLINE
-	 * tasks.
+	 * tasks. This check is not done when scheduling is disabled as the
+	 * users should know what they are doing.
+	 *
+	 * For v1, effective_cpus == cpus_allowed & user_xcpus() returns
+	 * cpus_allowed.
+	 *
+	 * For v2, is_partition_valid(cur) & is_sched_load_balance() are true
+	 * only for non-isolated partition root. At this point, the target
+	 * effective_cpus isn't computed yet. user_xcpus() is the best
+	 * approximation.
+	 *
+	 * TBD: May need to precompute the real effective_cpus here in case
+	 * incorrect scheduling of SCHED_DEADLINE tasks in a partition
+	 * becomes an issue.
 	 */
 	ret = -EBUSY;
-	if (is_cpu_exclusive(cur) &&
-	    !cpuset_cpumask_can_shrink(cur->cpus_allowed,
-				       trial->cpus_allowed))
+	if ((is_partition_valid(cur) || (!cpuset_v2() && is_cpu_exclusive(cur))) &&
+	    is_sched_load_balance(cur) &&
+	    !cpuset_cpumask_can_shrink(cur->effective_cpus, user_xcpus(trial)))
 		goto out;
 
 	/*
@@ -1975,6 +1988,8 @@ static void compute_partition_effective_cpumask(struct cpuset *cs,
 	struct cpuset *child;
 	bool populated = partition_is_populated(cs, NULL);
 
+	WARN_ON_ONCE(!is_partition_valid(cs));
+
 	/*
 	 * Check child partition roots to see if they should be
 	 * invalidated when
@@ -2708,6 +2723,8 @@ static void update_nodemasks_hier(struct cpuset *cs, nodemask_t *new_mems)
 			continue;
 		rcu_read_unlock();
 
+		check_insane_mems_config(new_mems);
+
 		spin_lock_irq(&callback_lock);
 		cp->effective_mems = *new_mems;
 		spin_unlock_irq(&callback_lock);
@@ -2777,8 +2794,6 @@ static int update_nodemask(struct cpuset *cs, struct cpuset *trialcs,
 	retval = validate_change(cs, trialcs);
 	if (retval < 0)
 		goto done;
-
-	check_insane_mems_config(&trialcs->mems_allowed);
 
 	spin_lock_irq(&callback_lock);
 	cs->mems_allowed = trialcs->mems_allowed;
@@ -3866,8 +3881,11 @@ retry:
 
 	if (partcmd >= 0) {
 		update_parent_effective_cpumask(cs, partcmd, NULL, tmp);
-		if ((partcmd == partcmd_invalidate) || is_partition_valid(cs)) {
+		if (is_partition_valid(cs)) {
 			compute_partition_effective_cpumask(cs, &new_cpus);
+			cpuset_force_rebuild();
+		} else if (partcmd == partcmd_invalidate) {
+			compute_effective_cpumask(&new_cpus, cs, parent);
 			cpuset_force_rebuild();
 		}
 	}
@@ -4172,10 +4190,21 @@ nodemask_t cpuset_mems_allowed(struct task_struct *tsk)
  * @nodemask: the nodemask to be checked
  *
  * Are any of the nodes in the nodemask allowed in current->mems_allowed?
+ *
+ * A cpuset update rebinds the task's mempolicy and changes mems_allowed in
+ * separate steps, so retry if an update raced with the check.
  */
 int cpuset_nodemask_valid_mems_allowed(nodemask_t *nodemask)
 {
-	return nodes_intersects(*nodemask, current->mems_allowed);
+	unsigned int seq;
+	int ret;
+
+	do {
+		seq = read_mems_allowed_begin();
+		ret = nodes_intersects(*nodemask, current->mems_allowed);
+	} while (read_mems_allowed_retry(seq));
+
+	return ret;
 }
 
 /*

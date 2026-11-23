@@ -912,6 +912,10 @@ static int cxl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (rc)
 		return rc;
 
+	rc = cxl_event_config(host_bridge, mds, irq_avail);
+	if (rc)
+		return rc;
+
 	pmu_count = cxl_count_regblock(pdev, CXL_REGLOC_RBI_PMU);
 	for (i = 0; i < pmu_count; i++) {
 		struct cxl_pmu_regs pmu_regs;
@@ -935,16 +939,13 @@ static int cxl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		}
 	}
 
-	rc = cxl_event_config(host_bridge, mds, irq_avail);
-	if (rc)
-		return rc;
-
 	if (cxl_pci_ras_unmask(pdev))
 		dev_dbg(&pdev->dev, "No RAS reporting unmasked\n");
 
 	pci_save_state(pdev);
 
-	return rc;
+	/* A missing PMU is not fatal, the memdev is still usable */
+	return 0;
 }
 
 static const struct pci_device_id cxl_mem_pci_tbl[] = {

@@ -255,6 +255,10 @@ struct dentry *proc_lookup_de(struct inode *dir, struct dentry *dentry,
 		inode = proc_get_inode(dir->i_sb, de);
 		if (!inode)
 			return ERR_PTR(-ENOMEM);
+		/* never reused and so never a mountpoint for long */
+		if (de->proc_dops == &proc_net_dentry_ops)
+			return proc_splice_unmountable(inode, dentry,
+						       &proc_net_dentry_ops);
 		d_set_d_op(dentry, de->proc_dops);
 		return d_splice_alias(inode, dentry);
 	}

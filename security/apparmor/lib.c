@@ -138,6 +138,29 @@ const char *aa_splitn_fqname(const char *fqname, size_t n, const char **ns_name,
 	return name;
 }
 
+bool aa_resize_str_table(struct aa_str_table *t, int newsize, gfp_t gfp)
+{
+	char **n;
+	int i;
+
+	if (t->size == newsize)
+		return true;
+	n = kcalloc(newsize, sizeof(*n), gfp);
+	if (!n)
+		return false;
+	for (i = 0; i < min(t->size, newsize); i++)
+		n[i] = t->table[i];
+	for (; i < t->size; i++)
+		kfree_sensitive(t->table[i]);
+	if (newsize > t->size)
+		memset(&n[t->size], 0, (newsize-t->size)*sizeof(*n));
+	kfree_sensitive(t->table);
+	t->table = n;
+	t->size = newsize;
+
+	return true;
+}
+
 /**
  * aa_info_message - log a none profile related status message
  * @str: message to log

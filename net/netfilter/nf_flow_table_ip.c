@@ -146,14 +146,14 @@ static void nf_flow_tuple_encap(struct sk_buff *skb,
 	int i = 0;
 
 	if (skb_vlan_tag_present(skb)) {
-		tuple->encap[i].id = skb_vlan_tag_get(skb);
+		tuple->encap[i].id = skb_vlan_tag_get_id(skb);
 		tuple->encap[i].proto = skb->vlan_proto;
 		i++;
 	}
 	switch (skb->protocol) {
 	case htons(ETH_P_8021Q):
 		veth = (struct vlan_ethhdr *)skb_mac_header(skb);
-		tuple->encap[i].id = ntohs(veth->h_vlan_TCI);
+		tuple->encap[i].id = ntohs(veth->h_vlan_TCI) & VLAN_VID_MASK;
 		tuple->encap[i].proto = skb->protocol;
 		break;
 	case htons(ETH_P_PPP_SES):
@@ -330,6 +330,22 @@ static void nf_flow_encap_pop(struct sk_buff *skb,
 	}
 }
 
+/* Make room for the link layer header of @dev, like ip_finish_output2() does.
+ * The flowtable fast path skips the IP output path, and a device with
+ * header_ops (e.g. an NBMA GRE tunnel) may need more headroom than the skb
+ * was received with. On failure the skb has been freed.
+ */
+static struct sk_buff *nf_flow_xmit_headroom(struct sk_buff *skb,
+					     struct net_device *dev)
+{
+	unsigned int hh_len = LL_RESERVED_SPACE(dev);
+
+	if (unlikely(skb_headroom(skb) < hh_len && dev->header_ops))
+		skb = skb_expand_head(skb, hh_len);
+
+	return skb;
+}
+
 static unsigned int nf_flow_queue_xmit(struct net *net, struct sk_buff *skb,
 				       const struct flow_offload_tuple_rhash *tuplehash,
 				       unsigned short type)
@@ -339,6 +355,10 @@ static unsigned int nf_flow_queue_xmit(struct net *net, struct sk_buff *skb,
 	outdev = dev_get_by_index_rcu(net, tuplehash->tuple.out.ifidx);
 	if (!outdev)
 		return NF_DROP;
+
+	skb = nf_flow_xmit_headroom(skb, outdev);
+	if (!skb)
+		return NF_STOLEN;
 
 	skb->dev = outdev;
 	dev_hard_header(skb, skb->dev, type, tuplehash->tuple.out.h_dest,
@@ -452,6 +472,9 @@ nf_flow_offload_ip_hook(void *priv, struct sk_buff *skb,
 	case FLOW_OFFLOAD_XMIT_NEIGH:
 		rt = dst_rtable(tuplehash->tuple.dst_cache);
 		outdev = rt->dst.dev;
+		skb = nf_flow_xmit_headroom(skb, outdev);
+		if (!skb)
+			return NF_STOLEN;
 		skb->dev = outdev;
 		nexthop = rt_nexthop(rt, flow->tuplehash[!dir].tuple.src_v4.s_addr);
 		skb_dst_drop(skb);
@@ -748,6 +771,9 @@ nf_flow_offload_ipv6_hook(void *priv, struct sk_buff *skb,
 	case FLOW_OFFLOAD_XMIT_NEIGH:
 		rt = dst_rt6_info(tuplehash->tuple.dst_cache);
 		outdev = rt->dst.dev;
+		skb = nf_flow_xmit_headroom(skb, outdev);
+		if (!skb)
+			return NF_STOLEN;
 		skb->dev = outdev;
 		nexthop = rt6_nexthop(rt, &flow->tuplehash[!dir].tuple.src_v6);
 		skb_dst_drop(skb);

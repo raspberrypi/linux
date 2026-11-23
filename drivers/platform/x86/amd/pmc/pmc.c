@@ -917,7 +917,9 @@ static int amd_pmc_probe(struct platform_device *pdev)
 		goto err_pci_dev_put;
 	}
 
-	mutex_init(&dev->lock);
+	err = devm_mutex_init(dev->dev, &dev->lock);
+	if (err)
+		goto err_pci_dev_put;
 
 	/* Get num of IP blocks within the SoC */
 	amd_pmc_get_ip_info(dev);
@@ -960,7 +962,10 @@ static void amd_pmc_remove(struct platform_device *pdev)
 	pci_dev_put(dev->rdev);
 	if (IS_ENABLED(CONFIG_AMD_MP2_STB))
 		amd_mp2_stb_deinit(dev);
-	mutex_destroy(&dev->lock);
+	dev->regbase = NULL;
+	dev->smu_virt_addr = NULL;
+	dev->stb_virt_addr = NULL;
+	dev->fch_virt_addr = NULL;
 }
 
 static const struct acpi_device_id amd_pmc_acpi_ids[] = {

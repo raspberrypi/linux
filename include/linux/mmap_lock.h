@@ -127,6 +127,10 @@ static inline int __must_check mmap_write_lock_killable(struct mm_struct *mm)
 	return ret;
 }
 
+#ifdef CONFIG_PER_VMA_LOCK
+void __mm_reset_vma_seqcounts(struct mm_struct *mm);
+#endif
+
 /*
  * Drop all currently-held per-VMA locks.
  * This is called from the mmap_lock implementation directly before releasing
@@ -139,6 +143,18 @@ static inline void vma_end_write_all(struct mm_struct *mm)
 {
 	mmap_assert_write_locked(mm);
 	mm_lock_seqcount_end(mm);
+
+#ifdef CONFIG_PER_VMA_LOCK
+	/*
+	 * VMA seqcounts are not updated on unlock, so once the mm seqcount has
+	 * wrapped, any VMA still carrying a sequence number from before the
+	 * wrap would satisfy __is_vma_write_locked() when that number comes
+	 * round again, and readers would not be excluded. Reset every VMA's
+	 * seqcount so that no stale value survives the wrap.
+	 */
+	if (unlikely(!mm->mm_lock_seq.sequence))
+		__mm_reset_vma_seqcounts(mm);
+#endif
 }
 
 static inline void mmap_write_unlock(struct mm_struct *mm)

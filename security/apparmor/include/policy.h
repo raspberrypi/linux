@@ -59,6 +59,11 @@ extern const char *const aa_profile_mode_names[];
 
 #define on_list_rcu(X) (!list_empty(X) && (X)->prev != LIST_POISON2)
 
+/* flags in the dfa accept2 table */
+enum dfa_accept_flags {
+	ACCEPT_FLAG_OWNER = 1,
+};
+
 /*
  * FIXME: currently need a clean way to replace and remove profiles as a
  * set.  It should be done at the namespace level.
@@ -124,6 +129,7 @@ static inline void aa_put_pdb(struct aa_policydb *pdb)
 		kref_put(&pdb->count, aa_pdb_free_kref);
 }
 
+/* lookup perm that doesn't have and object conditional */
 static inline struct aa_perms *aa_lookup_perms(struct aa_policydb *policy,
 					       aa_state_t state)
 {
@@ -134,7 +140,6 @@ static inline struct aa_perms *aa_lookup_perms(struct aa_policydb *policy,
 
 	return &(policy->perms[index]);
 }
-
 
 /* struct aa_data - generic data structure
  * key: name for retrieving this data
@@ -380,6 +385,26 @@ static inline void aa_put_profile(struct aa_profile *p)
 {
 	if (p)
 		kref_put(&p->label.count.count, aa_label_kref);
+}
+
+/**
+ * aa_put_unpublished_profile - put a profile that was never made visible
+ * @p: profile  (MAYBE NULL)
+ *
+ * A newly allocated profile and its proxy reference each other
+ * (proxy->label holds a label refcount). That cycle is normally broken
+ * when the profile is replaced or removed, which redirects the proxy.
+ * A profile that is discarded before being added to the policy tree
+ * never goes through either path, so break the cycle here, otherwise
+ * the profile, its proxy and its rawdata are leaked.
+ */
+static inline void aa_put_unpublished_profile(struct aa_profile *p)
+{
+	if (p && p->label.proxy) {
+		aa_put_proxy(p->label.proxy);
+		p->label.proxy = NULL;
+	}
+	aa_put_profile(p);
 }
 
 static inline int AUDIT_MODE(struct aa_profile *profile)

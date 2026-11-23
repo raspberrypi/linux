@@ -5879,6 +5879,18 @@ static int intel_atomic_check_planes(struct intel_atomic_state *state)
 	struct intel_crtc *crtc;
 	int i, ret;
 
+	for_each_new_intel_crtc_in_state(state, crtc, new_crtc_state, i) {
+		/*
+		 * Add affected plane here to ensure UV and Y plane linking is
+		 * in place if UV plane is added as a part of selective update.
+		 */
+		if (new_crtc_state->enable_psr2_sel_fetch) {
+			ret = intel_atomic_add_affected_planes(state, crtc);
+			if (ret)
+				return ret;
+		}
+	}
+
 	ret = icl_add_linked_planes(state);
 	if (ret)
 		return ret;

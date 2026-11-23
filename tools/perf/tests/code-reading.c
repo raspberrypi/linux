@@ -389,19 +389,25 @@ static int process_sample_event(struct machine *machine,
 	struct thread *thread;
 	int ret;
 
-	if (evlist__parse_sample(evlist, event, &sample)) {
+	perf_sample__init(&sample, /*all=*/false);
+	ret = evlist__parse_sample(evlist, event, &sample);
+	if (ret) {
 		pr_debug("evlist__parse_sample failed\n");
-		return -1;
+		ret = -1;
+		goto out;
 	}
 
 	thread = machine__findnew_thread(machine, sample.pid, sample.tid);
 	if (!thread) {
 		pr_debug("machine__findnew_thread failed\n");
-		return -1;
+		ret = -1;
+		goto out;
 	}
 
 	ret = read_object_code(sample.ip, READLEN, sample.cpumode, thread, state);
 	thread__put(thread);
+out:
+	perf_sample__exit(&sample);
 	return ret;
 }
 
@@ -555,15 +561,14 @@ static int do_test_code_reading(bool try_kcore)
 	struct dso *dso;
 	const char *events[] = { "cycles", "cycles:u", "cpu-clock", "cpu-clock:u", NULL };
 	int evidx = 0;
+	struct perf_env host_env;
 
 	pid = getpid();
 
-	machine = machine__new_host();
-	machine->env = &perf_env;
-
-	ret = machine__create_kernel_maps(machine);
-	if (ret < 0) {
-		pr_debug("machine__create_kernel_maps failed\n");
+	perf_env__init(&host_env);
+	machine = machine__new_host(&host_env);
+	if (!machine) {
+		pr_debug("machine__new_host failed\n");
 		goto out_err;
 	}
 
@@ -583,8 +588,10 @@ static int do_test_code_reading(bool try_kcore)
 	have_kcore = dso__is_kcore(dso);
 
 	/* 2nd time through we just try kcore */
-	if (try_kcore && !have_kcore)
-		return TEST_CODE_READING_NO_KCORE;
+	if (try_kcore && !have_kcore) {
+		err = TEST_CODE_READING_NO_KCORE;
+		goto out_err;
+	}
 
 	/* No point getting kernel events if there is no kernel object */
 	if (!have_vmlinux && !have_kcore)
@@ -702,6 +709,7 @@ out_err:
 	perf_cpu_map__put(cpus);
 	perf_thread_map__put(threads);
 	machine__delete(machine);
+	perf_env__exit(&host_env);
 
 	return err;
 }

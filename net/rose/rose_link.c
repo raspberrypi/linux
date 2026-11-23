@@ -185,7 +185,9 @@ void rose_link_rx_restart(struct sk_buff *skb, struct rose_neigh *neigh, unsigne
 			rose_link_restarted(neigh);
 		rose_stop_t0timer(neigh);
 		neigh->restarted = 1;
-		neigh->dce_mode  = (skb->data[3] == ROSE_DTE_ORIGINATED);
+		/* The restarting cause, when present, tells if the peer is a DTE */
+		if (skb->len > ROSE_MIN_LEN)
+			neigh->dce_mode = (skb->data[3] == ROSE_DTE_ORIGINATED);
 		rose_transmit_restart_confirmation(neigh);
 		break;
 
@@ -195,6 +197,9 @@ void rose_link_rx_restart(struct sk_buff *skb, struct rose_neigh *neigh, unsigne
 		break;
 
 	case ROSE_DIAGNOSTIC:
+		/* Diagnostic code and the first three bytes of the bad packet */
+		if (skb->len < ROSE_MIN_LEN + 4)
+			break;
 		pr_warn("ROSE: received diagnostic #%d - %3ph\n", skb->data[3],
 			skb->data + 4);
 		break;
