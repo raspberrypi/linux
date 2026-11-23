@@ -323,10 +323,10 @@ static const struct cci_reg_sequence mira016_8b_fine_gain_init[] = {
 	{ CCI_REG8(0x01f0), 0x24 },
 	{ CCI_REG8(0x01f3), 0x2 },
 	{ CCI_REG8(0xe000), 0x1 },
-	{ CCI_REG8(0xe024), 0x3 },
+	{ CCI_REG8(0xe024), 0xf },
 	{ CCI_REG8(0xe000), 0x0 },
 	{ CCI_REG8(0x005c), 0x0 },
-	{ CCI_REG8(0x005d), 0x18 },
+	{ CCI_REG8(0x005d), 0x6 },
 };
 
 static const struct cci_reg_sequence mira016_10b_fine_gain_init[] = {
