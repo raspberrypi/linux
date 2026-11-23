@@ -150,11 +150,8 @@ static int bcm2835_mbox_probe(struct platform_device *pdev)
 	ret = devm_request_irq(dev, platform_get_irq(pdev, 0),
 			       bcm2835_mbox_irq, IRQF_NO_SUSPEND, dev_name(dev),
 			       mbox);
-	if (ret) {
-		dev_err(dev, "Failed to register a mailbox IRQ handler: %d\n",
-			ret);
+	if (ret)
 		return -ENODEV;
-	}
 
 	mbox->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(mbox->regs)) {

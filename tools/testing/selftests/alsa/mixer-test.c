@@ -25,7 +25,7 @@
 #include <poll.h>
 #include <stdint.h>
 
-#include "../kselftest.h"
+#include "kselftest.h"
 #include "alsa-local.h"
 
 #define TESTS_PER_CONTROL 7
@@ -261,6 +261,8 @@ static int wait_for_event(struct ctl_data *ctl, int timeout)
 		if (ev_id != snd_ctl_elem_info_get_numid(ctl->info)) {
 			ksft_print_msg("Event for unexpected ctl %s\n",
 				       snd_ctl_event_elem_get_name(event));
+			/* The loop condition must not see the other control's mask */
+			mask = 0;
 			continue;
 		}
 

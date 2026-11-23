@@ -199,18 +199,20 @@ static int perf_event__drop_oe(const struct perf_tool *tool __maybe_unused,
 }
 #endif
 
-static int perf_event__repipe_op2_synth(struct perf_session *session,
+static int perf_event__repipe_op2_synth(const struct perf_tool *tool,
+					struct perf_session *session __maybe_unused,
 					union perf_event *event)
 {
-	return perf_event__repipe_synth(session->tool, event);
+	return perf_event__repipe_synth(tool, event);
 }
 
-static int perf_event__repipe_op4_synth(struct perf_session *session,
+static int perf_event__repipe_op4_synth(const struct perf_tool *tool,
+					struct perf_session *session __maybe_unused,
 					union perf_event *event,
 					u64 data __maybe_unused,
 					const char *str __maybe_unused)
 {
-	return perf_event__repipe_synth(session->tool, event);
+	return perf_event__repipe_synth(tool, event);
 }
 
 static int perf_event__repipe_attr(const struct perf_tool *tool,
@@ -239,8 +241,6 @@ static int perf_event__repipe_event_update(const struct perf_tool *tool,
 	return perf_event__repipe_synth(tool, event);
 }
 
-#ifdef HAVE_AUXTRACE_SUPPORT
-
 static int copy_bytes(struct perf_inject *inject, struct perf_data *data, off_t size)
 {
 	char buf[4096];
@@ -260,12 +260,11 @@ static int copy_bytes(struct perf_inject *inject, struct perf_data *data, off_t 
 	return 0;
 }
 
-static s64 perf_event__repipe_auxtrace(struct perf_session *session,
+static s64 perf_event__repipe_auxtrace(const struct perf_tool *tool,
+				       struct perf_session *session,
 				       union perf_event *event)
 {
-	const struct perf_tool *tool = session->tool;
-	struct perf_inject *inject = container_of(tool, struct perf_inject,
-						  tool);
+	struct perf_inject *inject = container_of(tool, struct perf_inject, tool);
 	int ret;
 
 	inject->have_auxtrace = true;
@@ -297,18 +296,6 @@ static s64 perf_event__repipe_auxtrace(struct perf_session *session,
 
 	return event->auxtrace.size;
 }
-
-#else
-
-static s64
-perf_event__repipe_auxtrace(struct perf_session *session __maybe_unused,
-			    union perf_event *event __maybe_unused)
-{
-	pr_err("AUX area tracing not supported\n");
-	return -EINVAL;
-}
-
-#endif
 
 static int perf_event__repipe(const struct perf_tool *tool,
 			      union perf_event *event,
@@ -748,12 +735,13 @@ static int perf_event__repipe_exit(const struct perf_tool *tool,
 }
 
 #ifdef HAVE_LIBTRACEEVENT
-static int perf_event__repipe_tracing_data(struct perf_session *session,
+static int perf_event__repipe_tracing_data(const struct perf_tool *tool,
+					   struct perf_session *session,
 					   union perf_event *event)
 {
-	perf_event__repipe_synth(session->tool, event);
+	perf_event__repipe_synth(tool, event);
 
-	return perf_event__process_tracing_data(session, event);
+	return perf_event__process_tracing_data(tool, session, event);
 }
 #endif
 
@@ -1435,7 +1423,7 @@ static int process_build_id(const struct perf_tool *tool,
 {
 	struct perf_inject *inject = container_of(tool, struct perf_inject, tool);
 
-	return perf_event__process_build_id(inject->session, event);
+	return perf_event__process_build_id(tool, inject->session, event);
 }
 
 static int synthesize_build_id(struct perf_inject *inject, struct dso *dso, pid_t machine_pid)
@@ -1867,9 +1855,10 @@ static int host__repipe(const struct perf_tool *tool,
 	return perf_event__repipe(tool, event, sample, machine);
 }
 
-static int host__finished_init(struct perf_session *session, union perf_event *event)
+static int host__finished_init(const struct perf_tool *tool, struct perf_session *session,
+			       union perf_event *event)
 {
-	struct perf_inject *inject = container_of(session->tool, struct perf_inject, tool);
+	struct perf_inject *inject = container_of(tool, struct perf_inject, tool);
 	struct guest_session *gs = &inject->guest_session;
 	int ret;
 
@@ -1916,7 +1905,7 @@ static int host__finished_init(struct perf_session *session, union perf_event *e
 	if (ret)
 		return ret;
 
-	return perf_event__repipe_op2_synth(session, event);
+	return perf_event__repipe_op2_synth(tool, session, event);
 }
 
 /*

@@ -370,50 +370,51 @@ static int amdgpu_userq_fence_read_wptr(struct amdgpu_usermode_queue *queue,
 {
 	struct amdgpu_bo_va_mapping *mapping;
 	struct amdgpu_bo *bo;
-	u64 addr, *ptr;
-	int r;
-
-	r = amdgpu_bo_reserve(queue->vm->root.bo, false);
-	if (r)
-		return r;
+	struct drm_exec exec;
+	u64 addr, offset, *ptr;
+	int ret;
 
 	addr = queue->userq_prop->wptr_gpu_addr;
 	addr &= AMDGPU_GMC_HOLE_MASK;
 
-	mapping = amdgpu_vm_bo_lookup_mapping(queue->vm, addr >> PAGE_SHIFT);
-	if (!mapping) {
-		amdgpu_bo_unreserve(queue->vm->root.bo);
-		DRM_ERROR("Failed to lookup amdgpu_bo_va_mapping\n");
-		return -EINVAL;
+	drm_exec_init(&exec, DRM_EXEC_IGNORE_DUPLICATES, 2);
+	drm_exec_until_all_locked(&exec) {
+		ret = amdgpu_vm_lock_pd(queue->vm, &exec, 1);
+		drm_exec_retry_on_contention(&exec);
+		if (unlikely(ret))
+			goto lock_error;
+
+		mapping = amdgpu_vm_bo_lookup_mapping(queue->vm, addr >> PAGE_SHIFT);
+		if (!mapping) {
+			ret = -EINVAL;
+			goto lock_error;
+		}
+
+		ret = drm_exec_lock_obj(&exec, &mapping->bo_va->base.bo->tbo.base);
+		drm_exec_retry_on_contention(&exec);
+		if (unlikely(ret))
+			goto lock_error;
 	}
 
-	bo = amdgpu_bo_ref(mapping->bo_va->base.bo);
-	amdgpu_bo_unreserve(queue->vm->root.bo);
-	r = amdgpu_bo_reserve(bo, true);
-	if (r) {
-		DRM_ERROR("Failed to reserve userqueue wptr bo");
-		return r;
-	}
-
-	r = amdgpu_bo_kmap(bo, (void **)&ptr);
-	if (r) {
+	bo = mapping->bo_va->base.bo;
+	ret = amdgpu_bo_kmap(bo, (void **)&ptr);
+	if (ret) {
 		DRM_ERROR("Failed mapping the userqueue wptr bo");
-		goto map_error;
+		goto lock_error;
 	}
 
-	*wptr = le64_to_cpu(*ptr);
+	/* The WPTR can be anywhere within the BO's VA mapping. */
+	offset = addr - (mapping->start << AMDGPU_GPU_PAGE_SHIFT);
+	offset += mapping->offset;
+	*wptr = le64_to_cpu(ptr[offset / sizeof(*ptr)]);
 
 	amdgpu_bo_kunmap(bo);
-	amdgpu_bo_unreserve(bo);
-	amdgpu_bo_unref(&bo);
-
+	drm_exec_fini(&exec);
 	return 0;
 
-map_error:
-	amdgpu_bo_unreserve(bo);
-	amdgpu_bo_unref(&bo);
-
-	return r;
+lock_error:
+	drm_exec_fini(&exec);
+	return ret;
 }
 
 static void amdgpu_userq_fence_cleanup(struct dma_fence *fence)

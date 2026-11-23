@@ -11,14 +11,13 @@
 #include <linux/compiler.h>
 #include <linux/kernel.h>
 #include <linux/zalloc.h>
-#include <babeltrace/ctf-writer/writer.h>
-#include <babeltrace/ctf-writer/clock.h>
-#include <babeltrace/ctf-writer/stream.h>
-#include <babeltrace/ctf-writer/event.h>
-#include <babeltrace/ctf-writer/event-types.h>
-#include <babeltrace/ctf-writer/event-fields.h>
-#include <babeltrace/ctf-ir/utils.h>
-#include <babeltrace/ctf/events.h>
+#include <babeltrace2-ctf-writer/writer.h>
+#include <babeltrace2-ctf-writer/clock.h>
+#include <babeltrace2-ctf-writer/stream.h>
+#include <babeltrace2-ctf-writer/event.h>
+#include <babeltrace2-ctf-writer/event-types.h>
+#include <babeltrace2-ctf-writer/event-fields.h>
+#include <babeltrace2-ctf-writer/utils.h>
 #include "asm/bug.h"
 #include "data-convert.h"
 #include "session.h"
@@ -114,13 +113,13 @@ static int value_set(struct bt_ctf_field_type *type,
 	}
 
 	if (sign) {
-		ret = bt_ctf_field_signed_integer_set_value(field, val);
+		ret = bt_ctf_field_integer_signed_set_value(field, val);
 		if (ret) {
 			pr_err("failed to set field value %s\n", name);
 			goto err;
 		}
 	} else {
-		ret = bt_ctf_field_unsigned_integer_set_value(field, val);
+		ret = bt_ctf_field_integer_unsigned_set_value(field, val);
 		if (ret) {
 			pr_err("failed to set field value %s\n", name);
 			goto err;
@@ -367,10 +366,10 @@ static int add_tracepoint_field_value(struct ctf_writer *cw,
 					data + offset + i * len, len);
 
 			if (!(flags & TEP_FIELD_IS_SIGNED))
-				ret = bt_ctf_field_unsigned_integer_set_value(
+				ret = bt_ctf_field_integer_unsigned_set_value(
 						field, value_int);
 			else
-				ret = bt_ctf_field_signed_integer_set_value(
+				ret = bt_ctf_field_integer_signed_set_value(
 						field, adjust_signedness(value_int, len));
 		}
 
@@ -464,7 +463,7 @@ add_bpf_output_values(struct bt_ctf_event_class *event_class,
 		goto put_len_type;
 	}
 
-	ret = bt_ctf_field_unsigned_integer_set_value(len_field, nr_elements);
+	ret = bt_ctf_field_integer_unsigned_set_value(len_field, nr_elements);
 	if (ret) {
 		pr_err("failed to set field value for raw_len\n");
 		goto put_len_field;
@@ -493,7 +492,7 @@ add_bpf_output_values(struct bt_ctf_event_class *event_class,
 		struct bt_ctf_field *elem_field =
 			bt_ctf_field_sequence_get_field(seq_field, i);
 
-		ret = bt_ctf_field_unsigned_integer_set_value(elem_field,
+		ret = bt_ctf_field_integer_unsigned_set_value(elem_field,
 				((u32 *)(sample->raw_data))[i]);
 
 		bt_ctf_field_put(elem_field);
@@ -538,7 +537,7 @@ add_callchain_output_values(struct bt_ctf_event_class *event_class,
 		goto put_len_type;
 	}
 
-	ret = bt_ctf_field_unsigned_integer_set_value(len_field, nr_elements);
+	ret = bt_ctf_field_integer_unsigned_set_value(len_field, nr_elements);
 	if (ret) {
 		pr_err("failed to set field value for perf_callchain_size\n");
 		goto put_len_field;
@@ -568,7 +567,7 @@ add_callchain_output_values(struct bt_ctf_event_class *event_class,
 		struct bt_ctf_field *elem_field =
 			bt_ctf_field_sequence_get_field(seq_field, i);
 
-		ret = bt_ctf_field_unsigned_integer_set_value(elem_field,
+		ret = bt_ctf_field_integer_unsigned_set_value(elem_field,
 				((u64 *)(callchain->ips))[i]);
 
 		bt_ctf_field_put(elem_field);
@@ -721,7 +720,7 @@ static struct ctf_stream *ctf_stream__create(struct ctf_writer *cw, int cpu)
 		goto out;
 	}
 
-	ret = bt_ctf_field_unsigned_integer_set_value(cpu_field, (u32) cpu);
+	ret = bt_ctf_field_integer_unsigned_set_value(cpu_field, (u32) cpu);
 	if (ret) {
 		pr_err("Failed to update CPU number\n");
 		goto out;

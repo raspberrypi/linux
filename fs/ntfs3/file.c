@@ -59,11 +59,14 @@ static int ntfs_ioctl_get_volume_label(struct ntfs_sb_info *sbi, u8 __user *buf)
 
 static int ntfs_ioctl_set_volume_label(struct ntfs_sb_info *sbi, u8 __user *buf)
 {
-	u8 user[FSLABEL_MAX] = {0};
+	u8 user[FSLABEL_MAX] = { 0 };
 	int len;
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
+
+	if (sb_rdonly(sbi->sb))
+		return -EROFS;
 
 	if (copy_from_user(user, buf, FSLABEL_MAX))
 		return -EFAULT;
@@ -1026,7 +1029,7 @@ static ssize_t ntfs_compress_write(struct kiocb *iocb, struct iov_iter *from)
 
 		if (!frame_uptodate && off) {
 			err = ni_read_frame(ni, frame_vbo, pages,
-					    pages_per_frame);
+					    pages_per_frame, 0);
 			if (err) {
 				for (ip = 0; ip < pages_per_frame; ip++) {
 					folio = page_folio(pages[ip]);
@@ -1091,7 +1094,7 @@ static ssize_t ntfs_compress_write(struct kiocb *iocb, struct iov_iter *from)
 
 			if (off || (to < i_size && (to & (frame_size - 1)))) {
 				err = ni_read_frame(ni, frame_vbo, pages,
-						    pages_per_frame);
+						    pages_per_frame, 0);
 				if (err) {
 					for (ip = 0; ip < pages_per_frame;
 					     ip++) {

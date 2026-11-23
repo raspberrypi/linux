@@ -136,8 +136,9 @@ pub struct Subsystem<Data> {
 // SAFETY: We do not provide any operations on `Subsystem`.
 unsafe impl<Data> Sync for Subsystem<Data> {}
 
-// SAFETY: Ownership of `Subsystem` can safely be transferred to other threads.
-unsafe impl<Data> Send for Subsystem<Data> {}
+// SAFETY: Ownership of `Subsystem` can safely be transferred to other threads
+// if its data can be transferred as well.
+unsafe impl<Data: Send> Send for Subsystem<Data> {}
 
 impl<Data> Subsystem<Data> {
     /// Create an initializer for a [`Subsystem`].
@@ -250,6 +251,13 @@ pub struct Group<Data> {
     data: Data,
 }
 
+// SAFETY: We do not provide any operations on `Group`.
+unsafe impl<Data> Sync for Group<Data> {}
+
+// SAFETY: Ownership of `Group` can safely be transferred to other threads if
+// its data can be transferred as well.
+unsafe impl<Data: Send> Send for Group<Data> {}
+
 impl<Data> Group<Data> {
     /// Create an initializer for a new group.
     ///
@@ -339,7 +347,9 @@ struct GroupOperationsVTable<Parent, Child>(PhantomData<(Parent, Child)>);
 impl<Parent, Child> GroupOperationsVTable<Parent, Child>
 where
     Parent: GroupOperations<Child = Child>,
-    Child: 'static,
+    // We transfer `Arc<Group<Data>>` across a thread boundary in `make_group`
+    // and `drop_item`.
+    Arc<Group<Child>>: Send,
 {
     /// # Safety
     ///
@@ -358,8 +368,9 @@ where
         this: *mut bindings::config_group,
         name: *const kernel::ffi::c_char,
     ) -> *mut bindings::config_group {
-        // SAFETY: By function safety requirements of this function, this call
-        // is safe.
+        // SAFETY: By function safety requirements, `this` points to a configfs
+        // group containing `Parent`. The `GroupOperations` bound guarantees
+        // that `Parent: Sync`, so it is safe to share it with this thread.
         let parent_data = unsafe { get_group_data(this) };
 
         let group_init = match Parent::make_group(
@@ -404,8 +415,9 @@ where
         this: *mut bindings::config_group,
         item: *mut bindings::config_item,
     ) {
-        // SAFETY: By function safety requirements of this function, this call
-        // is safe.
+        // SAFETY: By function safety requirements, `this` points to a configfs
+        // group containing `Parent`. The `GroupOperations` bound guarantees
+        // that `Parent: Sync`, so it is safe to share it with this thread.
         let parent_data = unsafe { get_group_data(this) };
 
         // SAFETY: By function safety requirements, `item` is embedded in a
@@ -417,7 +429,9 @@ where
 
         if Parent::HAS_DROP_ITEM {
             // SAFETY: We called `into_raw` to produce `r_child_group_ptr` in
-            // `make_group`.
+            // `make_group`. This function may be executing on a different
+            // thread than `into_raw`. As `Arc<Group<Child>>: Send` this
+            // ownership transfer is safe.
             let arc: Arc<Group<Child>> = unsafe { Arc::from_raw(r_child_group_ptr.cast_mut()) };
 
             Parent::drop_item(parent_data, arc.as_arc_borrow());
@@ -448,6 +462,8 @@ struct ItemOperationsVTable<Container, Data>(PhantomData<(Container, Data)>);
 impl<Data> ItemOperationsVTable<Group<Data>, Data>
 where
     Data: 'static,
+    // We transfer `Arc<Group<Data>>` across a thread boundary in `release`.
+    Arc<Group<Data>>: Send,
 {
     /// # Safety
     ///
@@ -464,8 +480,9 @@ where
         // embedded within a `Group<Data>`.
         let r_group_ptr = unsafe { Group::<Data>::container_of(c_group_ptr) };
 
-        // SAFETY: We called `into_raw` on `r_group_ptr` in
-        // `make_group`.
+        // SAFETY: We called `into_raw` on `r_group_ptr` in `make_group`. This
+        // function may be running on a different thread than the thread that
+        // called `into_raw`. As `Arc<Group<Data>>: Send`, this is safe.
         let pin_self: Arc<Group<Data>> = unsafe { Arc::from_raw(r_group_ptr.cast_mut()) };
         drop(pin_self);
     }
@@ -497,12 +514,12 @@ impl<Data> ItemOperationsVTable<Subsystem<Data>, Data> {
 ///
 /// Implement this trait on structs that embed a [`Subsystem`] or a [`Group`].
 #[vtable]
-pub trait GroupOperations {
+pub trait GroupOperations: Sync {
     /// The child data object type.
     ///
     /// This group will create subgroups (subdirectories) backed by this kind of
     /// object.
-    type Child: 'static;
+    type Child: 'static + Send;
 
     /// Creates a new subgroup.
     ///
@@ -569,8 +586,10 @@ where
             // `config_group`.
             unsafe { container_of!(item, bindings::config_group, cg_item) };
 
-        // SAFETY: The function safety requirements for this function satisfy
-        // the conditions for this call.
+        // SAFETY: By function safety requirements, `c_group` points to a
+        // configfs group containing `Data`. The `AttributeOperations` bound
+        // guarantees that `Data: Sync`, so it is safe to share it with this
+        // thread.
         let data: &Data = unsafe { get_group_data(c_group) };
 
         // SAFETY: By function safety requirements, `page` is writable for `PAGE_SIZE`.
@@ -603,8 +622,10 @@ where
         // `config_group`.
             unsafe { container_of!(item, bindings::config_group, cg_item) };
 
-        // SAFETY: The function safety requirements for this function satisfy
-        // the conditions for this call.
+        // SAFETY: By function safety requirements, `c_group` points to a
+        // configfs group containing `Data`. The `AttributeOperations` bound
+        // guarantees that `Data: Sync`, so it is safe to share it with this
+        // thread.
         let data: &Data = unsafe { get_group_data(c_group) };
 
         let ret = O::store(
@@ -657,7 +678,7 @@ where
 pub trait AttributeOperations<const ID: u64 = 0> {
     /// The type of the object that contains the field that is backing the
     /// attribute for this operation.
-    type Data;
+    type Data: Sync;
 
     /// Renders the value of an attribute.
     ///
@@ -763,7 +784,8 @@ macro_rules! impl_item_type {
             ) -> Self
             where
                 Data: GroupOperations<Child = Child>,
-                Child: 'static,
+                Arc<Group<Child>>: Send,
+                Arc<Group<Data>>: Send,
             {
                 Self {
                     item_type: Opaque::new(bindings::config_item_type {
@@ -781,7 +803,10 @@ macro_rules! impl_item_type {
             pub const fn new<const N: usize>(
                 owner: &'static ThisModule,
                 attributes: &'static AttributeList<N, Data>,
-            ) -> Self {
+            ) -> Self
+            where
+                Arc<Group<Data>>: Send,
+            {
                 Self {
                     item_type: Opaque::new(bindings::config_item_type {
                         ct_owner: owner.as_ptr(),

@@ -1092,7 +1092,7 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 	if (!wcid)
 		wcid = &dev->mt76.global_wcid;
 
-	if ((is_8023 || ieee80211_is_data_qos(hdr->frame_control)) && sta->mlo &&
+	if (sta && (is_8023 || ieee80211_is_data_qos(hdr->frame_control)) && sta->mlo &&
 	    likely(tx_info->skb->protocol != cpu_to_be16(ETH_P_PAE))) {
 		u8 tid = tx_info->skb->priority & IEEE80211_QOS_CTL_TID_MASK;
 
@@ -1132,7 +1132,7 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 	 * compatible with 802.11 EAPOL frame, we do the translation by
 	 * software
 	 */
-	if (tx_info->skb->protocol == cpu_to_be16(ETH_P_PAE) && sta->mlo) {
+	if (sta && tx_info->skb->protocol == cpu_to_be16(ETH_P_PAE) && sta->mlo) {
 		struct ieee80211_hdr *hdr = (void *)tx_info->skb->data;
 		struct ieee80211_bss_conf *link_conf;
 		struct ieee80211_link_sta *link_sta;
@@ -1973,6 +1973,9 @@ void mt7996_rro_rx_process(struct mt76_dev *mdev, void *data)
 	struct mt7996_msdu_page *p = NULL;
 	int i, seq_num = 0;
 
+	if (seq_id > MT7996_RRO_MAX_SESSION)
+		return;
+
 	for (i = 0; i < ind_count; i++) {
 		struct mt7996_wed_rro_addr *e;
 		struct mt76_rx_status *status;
@@ -2271,9 +2274,14 @@ mt7996_update_vif_beacon(void *priv, u8 *mac, struct ieee80211_vif *vif)
 
 	for_each_vif_active_link(vif, link_conf, link_id) {
 		struct mt7996_vif_link *link;
+		struct mt7996_phy *link_phy;
 
 		link = mt7996_vif_link(dev, vif, link_id);
-		if (!link || link->phy != phy)
+		if (!link)
+			continue;
+
+		link_phy = mt7996_vif_link_phy(link);
+		if (link_phy != phy)
 			continue;
 
 		mt7996_mcu_add_beacon(dev->mt76.hw, vif, link_conf,
@@ -2517,6 +2525,7 @@ mt7996_mac_full_reset(struct mt7996_dev *dev)
 
 	dev->recovery.hw_full_reset = true;
 
+	set_bit(MT76_RESTART, &dev->mphy.state);
 	set_bit(MT76_MCU_RESET, &dev->mphy.state);
 	wake_up(&dev->mt76.mcu.wait);
 	ieee80211_stop_queues(hw);

@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
 #include "arch-tests.h"
 #include "../util/topdown.h"
 #include "debug.h"
@@ -74,4 +77,196 @@ static int test__x86_topdown(struct test_suite *test __maybe_unused, int subtest
 	return ret;
 }
 
-DEFINE_SUITE("x86 topdown", x86_topdown);
+#define CHECK_COND(cond, text)					\
+do {								\
+	if (!(cond)) {						\
+		pr_debug("FAILED %s:%d %s\n", __FILE__, __LINE__, text); \
+		ret = TEST_FAIL;				\
+		goto out_err;					\
+	}							\
+} while (0)
+
+#define CHECK_EQUAL(val, expected, text)			\
+do {								\
+	if ((val) != (expected)) {				\
+		pr_debug("FAILED %s:%d %s (%d != %d)\n",	\
+			 __FILE__, __LINE__, text, (val), (expected)); \
+		ret = TEST_FAIL;				\
+		goto out_err;					\
+	}							\
+} while (0)
+
+static int test_sort(const char *str, int expected_slots_group_size,
+		     int expected_instructions_group_size)
+{
+	struct evlist *evlist = NULL;
+	struct parse_events_error err;
+	struct evsel *evsel;
+	int ret = TEST_FAIL;
+	bool slots_seen = false;
+
+	parse_events_error__init(&err);
+
+	evlist = evlist__new();
+	if (!evlist)
+		goto out_err;
+
+	if (parse_events(evlist, str, &err)) {
+		pr_debug("parse_events failed for %s\n", str);
+		goto out_err;
+	}
+
+	evlist__for_each_entry(evlist, evsel) {
+		if (!evsel__is_group_leader(evsel))
+			continue;
+
+		if (strstr(evsel__name(evsel), "slots")) {
+			/*
+			 * Slots as a leader means the PMU is for a perf metric
+			 * group as the slots event isn't present when not.
+			 */
+			slots_seen = true;
+			CHECK_EQUAL(evsel->core.nr_members, expected_slots_group_size,
+				    "slots group size");
+			if (expected_slots_group_size == 3) {
+				struct evsel *next = evsel__next(evsel);
+				struct evsel *next2 = evsel__next(next);
+
+				CHECK_COND(strstr(evsel__name(next), "instructions") != NULL,
+					   "slots second event is instructions");
+				CHECK_COND(strstr(evsel__name(next2), "topdown-retiring") != NULL,
+					   "slots third event is topdown-retiring");
+			} else if (expected_slots_group_size == 2) {
+				struct evsel *next = evsel__next(evsel);
+
+				CHECK_COND(strstr(evsel__name(next), "topdown-retiring") != NULL,
+					   "slots second event is topdown-retiring");
+			}
+		} else if (strstr(evsel__name(evsel), "instructions")) {
+			CHECK_EQUAL(evsel->core.nr_members, expected_instructions_group_size,
+				    "instructions group size");
+			if (expected_instructions_group_size == 2) {
+				/*
+				 * On Intel hybrid CPUs (e.g., Alder Lake/
+				 * Raptor Lake), E-cores (cpu_atom) do not
+				 * support/enforce the slots event. When
+				 * parsing event groups containing slots
+				 * across all PMUs, slots is automatically
+				 * filtered out from cpu_atom, leaving
+				 * {cpu_atom/instructions/,
+				 *  cpu_atom/topdown-retiring/}. On cpu_atom,
+				 * instructions correctly leads this group of
+				 * 2 without slots reordering.
+				 */
+				struct evsel *next = evsel__next(evsel);
+
+				CHECK_COND(strstr(evsel__name(next), "topdown-retiring") != NULL,
+					   "instructions second event is topdown-retiring");
+			}
+		} else if (strstr(evsel__name(evsel), "topdown-retiring")) {
+			/*
+			 * A perf metric event where the PMU doesn't require
+			 * slots as a leader.
+			 */
+			CHECK_EQUAL(evsel->core.nr_members, 1, "topdown-retiring group size");
+		} else if (strstr(evsel__name(evsel), "cycles")) {
+			CHECK_EQUAL(evsel->core.nr_members, 1, "cycles group size");
+		}
+	}
+	CHECK_COND(slots_seen, "slots seen");
+	ret = TEST_OK;
+out_err:
+	evlist__delete(evlist);
+	parse_events_error__exit(&err);
+	return ret;
+}
+
+static int test__x86_topdown_sorting(struct test_suite *test __maybe_unused,
+				     int subtest __maybe_unused)
+{
+	int ret;
+
+	if (!topdown_sys_has_perf_metrics())
+		return TEST_OK;
+
+	ret = test_sort("{instructions,topdown-retiring,slots}", 3, 2);
+	TEST_ASSERT_EQUAL("all events in a group", ret, TEST_OK);
+	ret = test_sort("instructions,topdown-retiring,slots", 2, 1);
+	TEST_ASSERT_EQUAL("all events not in a group", ret, TEST_OK);
+	ret = test_sort("{instructions,slots},topdown-retiring", 2, 1);
+	TEST_ASSERT_EQUAL("slots event in a group but topdown metrics events outside the group",
+			  ret, TEST_OK);
+	ret = test_sort("{instructions,slots},{topdown-retiring}", 2, 1);
+	TEST_ASSERT_EQUAL("slots event and topdown metrics events in two groups",
+			  ret, TEST_OK);
+	ret = test_sort("{instructions,slots},cycles,topdown-retiring", 2, 1);
+	TEST_ASSERT_EQUAL("slots event and metrics event are not in a group and not adjacent",
+			  ret, TEST_OK);
+
+	return TEST_OK;
+}
+
+static int test__x86_topdown_slots_injection(struct test_suite *test __maybe_unused,
+					     int subtest __maybe_unused)
+{
+	int ret;
+
+	if (!topdown_sys_has_perf_metrics())
+		return TEST_OK;
+
+	ret = test_sort("{instructions,topdown-retiring}", 3, 2);
+	TEST_ASSERT_EQUAL("all events in a group", ret, TEST_OK);
+	ret = test_sort("instructions,topdown-retiring", 2, 1);
+	TEST_ASSERT_EQUAL("all events not in a group", ret, TEST_OK);
+	ret = test_sort("{instructions},topdown-retiring", 2, 1);
+	TEST_ASSERT_EQUAL("event in a group but topdown metrics events outside the group",
+			  ret, TEST_OK);
+	ret = test_sort("{instructions},{topdown-retiring}", 2, 1);
+	TEST_ASSERT_EQUAL("event and topdown metrics events in two groups",
+			  ret, TEST_OK);
+	ret = test_sort("{instructions},cycles,topdown-retiring", 2, 1);
+	TEST_ASSERT_EQUAL("event and metrics event are not in a group and not adjacent",
+			  ret, TEST_OK);
+
+	return TEST_OK;
+}
+
+/*
+ * An explicit "slots,metrics_clear=1" event is still the slots event and
+ * must not cause an extra slots event to be injected into the group.
+ */
+static int test__x86_topdown_metrics_clear(struct test_suite *test __maybe_unused,
+					   int subtest __maybe_unused)
+{
+	struct perf_pmu *pmu;
+	char event_str[128];
+	int ret;
+
+	if (!topdown_sys_has_perf_metrics())
+		return TEST_OK;
+
+	pmu = perf_pmus__find_by_type(PERF_TYPE_RAW);
+	if (!pmu || !perf_pmu__has_format(pmu, "metrics_clear"))
+		return TEST_OK;
+
+	snprintf(event_str, sizeof(event_str),
+		 "{%s/slots,metrics_clear=1/,%s/topdown-retiring/}",
+		 pmu->name, pmu->name);
+	ret = test_sort(event_str, 2, 1);
+	TEST_ASSERT_EQUAL("explicit metrics_clear slots event isn't duplicated", ret, TEST_OK);
+
+	return TEST_OK;
+}
+
+static struct test_case x86_topdown_tests[] = {
+	TEST_CASE("topdown events", x86_topdown),
+	TEST_CASE("topdown sorting", x86_topdown_sorting),
+	TEST_CASE("topdown slots injection", x86_topdown_slots_injection),
+	TEST_CASE("topdown metrics_clear no extra slots", x86_topdown_metrics_clear),
+	{ .name = NULL, }
+};
+
+struct test_suite suite__x86_topdown = {
+	.desc = "x86 topdown",
+	.test_cases = x86_topdown_tests,
+};

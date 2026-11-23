@@ -27,6 +27,7 @@
 
 #include <linux/amba/bus.h>
 #include <linux/interrupt.h>
+#include <linux/iopoll.h>
 #include <linux/mailbox_controller.h>
 #include <linux/mailbox/arm_mhuv2_message.h>
 #include <linux/module.h>
@@ -968,6 +969,7 @@ static int mhuv2_tx_init(struct amba_device *adev, struct mhuv2 *mhu,
 {
 	struct device *dev = mhu->mbox.dev;
 	int ret, i;
+	u32 val;
 
 	mhu->frame = SENDER_FRAME;
 	mhu->mbox.ops = &mhuv2_sender_ops;
@@ -986,10 +988,7 @@ static int mhuv2_tx_init(struct amba_device *adev, struct mhuv2 *mhu,
 		ret = devm_request_threaded_irq(dev, adev->irq[0], NULL,
 						mhuv2_sender_interrupt,
 						IRQF_ONESHOT, "mhuv2-tx", mhu);
-		if (ret) {
-			dev_err(dev, "Failed to request tx IRQ, fallback to polling mode: %d\n",
-				ret);
-		} else {
+		if (!ret) {
 			mhu->mbox.txdone_irq = true;
 			mhu->mbox.txdone_poll = false;
 			mhu->irq = adev->irq[0];
@@ -1011,8 +1010,11 @@ static int mhuv2_tx_init(struct amba_device *adev, struct mhuv2 *mhu,
 out:
 	/* Wait for receiver to be ready */
 	writel_relaxed(0x1, &mhu->send->access_request);
-	while (!readl_relaxed(&mhu->send->access_ready))
-		continue;
+	if (readl_relaxed_poll_timeout(&mhu->send->access_ready, val, val,
+				       100, 1000000)) {
+		dev_err(dev, "receiver not ready\n");
+		return -ETIMEDOUT;
+	}
 
 	return 0;
 }
@@ -1039,10 +1041,8 @@ static int mhuv2_rx_init(struct amba_device *adev, struct mhuv2 *mhu,
 	ret = devm_request_threaded_irq(dev, mhu->irq, NULL,
 					mhuv2_receiver_interrupt, IRQF_ONESHOT,
 					"mhuv2-rx", mhu);
-	if (ret) {
-		dev_err(dev, "Failed to request rx IRQ\n");
+	if (ret)
 		return ret;
-	}
 
 	/* Mask all the channel windows */
 	for (i = 0; i < mhu->windows; i++)

@@ -364,12 +364,6 @@
 			};
 		};
 
-		sound {
-			stericsson,audio-codec = <&codec>;
-			clocks = <&prcmu_clk PRCMU_SYSCLK>, <&ab8500_clock AB8500_SYSCLK_ULP>, <&ab8500_clock AB8500_SYSCLK_INT>;
-			clock-names = "sysclk", "ulpclk", "intclk";
-		};
-
 		mcde@a0350000 {
 			vana-supply = <&ab8500_ldo_ana_reg>;
 

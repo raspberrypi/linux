@@ -1359,7 +1359,7 @@ int domain_attach_iommu(struct dmar_domain *domain, struct intel_iommu *iommu)
 	}
 
 	num = ida_alloc_range(&iommu->domain_ida, IDA_START_DID,
-			      cap_ndoms(iommu->cap) - 1, GFP_KERNEL);
+			      iommu->max_domain_id - 1, GFP_KERNEL);
 	if (num < 0) {
 		pr_err("%s: No free domain ids\n", iommu->name);
 		goto err_unlock;
@@ -1424,7 +1424,7 @@ static void copied_context_tear_down(struct intel_iommu *iommu,
 	context_clear_present(context);
 	__iommu_flush_cache(iommu, context, sizeof(*context));
 
-	if (did_old < cap_ndoms(iommu->cap)) {
+	if (did_old < iommu->max_domain_id) {
 		iommu->flush.flush_context(iommu, did_old,
 					   PCI_DEVID(bus, devfn),
 					   DMA_CCMD_MASK_NOBIT,
@@ -1923,12 +1923,103 @@ static void intel_iommu_init_qi(struct intel_iommu *iommu)
 	}
 }
 
+/*
+ * Reserve a domain ID inherited from the previous kernel so that it is not
+ * handed out again while the copied translation structures are still live.
+ *
+ * Returns 0 when the ID is reserved, was already reserved, or cannot be
+ * re-assigned, and a negative errno for a genuine allocation failure.
+ */
+static int reserve_domain_id(struct intel_iommu *iommu, int did)
+{
+	int ret;
+
+	if (did < 0 || did >= iommu->max_domain_id)
+		return 0;
+
+	ret = ida_alloc_range(&iommu->domain_ida, did, did, GFP_KERNEL);
+	/*
+	 * Devices sharing a domain share its ID, so the same ID is seen in
+	 * more than one context entry; -ENOSPC merely reports that it is
+	 * already reserved.  On success the allocated ID is returned, which
+	 * is not an error either.
+	 */
+	if (ret == -ENOSPC || ret >= 0)
+		return 0;
+
+	return ret;
+}
+
+/*
+ * Reserve the domain IDs used by a scalable mode context entry copied from
+ * the previous kernel.
+ */
+static int copy_pasid_table_dids(struct intel_iommu *iommu, struct context_entry *ce)
+{
+	struct pasid_dir_entry *dir;
+	unsigned long dir_size;
+	phys_addr_t dir_phys;
+	int ret = 0;
+	int i, j;
+
+	dir_phys = ce->lo & VTD_PAGE_MASK;
+	if (!dir_phys)
+		return 0;
+
+	dir_size = get_pasid_dir_size(ce);
+	dir = memremap(dir_phys, dir_size * sizeof(*dir), MEMREMAP_WB);
+	if (!dir)
+		return -ENOMEM;
+
+	for (i = 0; i < dir_size; i++) {
+		struct pasid_entry *table;
+		phys_addr_t table_phys;
+
+		if (!pasid_pde_is_present(&dir[i]))
+			continue;
+
+		/*
+		 * Do not use get_pasid_table_from_pde(); that returns a
+		 * phys_to_virt() pointer, which is not valid for memory
+		 * owned by the previous kernel.
+		 */
+		table_phys = READ_ONCE(dir[i].val) & PDE_PFN_MASK;
+		if (!table_phys)
+			continue;
+
+		/* A PASID table is one page: PASID_TBL_ENTRIES * 64 bytes. */
+		table = memremap(table_phys, PAGE_SIZE, MEMREMAP_WB);
+		if (!table) {
+			ret = -ENOMEM;
+			goto out;
+		}
+
+		for (j = 0; j < PASID_TBL_ENTRIES; j++) {
+			if (!pasid_pte_is_present(&table[j]))
+				continue;
+
+			ret = reserve_domain_id(iommu, pasid_get_domain_id(&table[j]));
+			if (ret) {
+				memunmap(table);
+				goto out;
+			}
+		}
+
+		memunmap(table);
+	}
+
+out:
+	memunmap(dir);
+
+	return ret;
+}
+
 static int copy_context_table(struct intel_iommu *iommu,
 			      struct root_entry *old_re,
 			      struct context_entry **tbl,
 			      int bus, bool ext)
 {
-	int tbl_idx, tbl_slot = 0, idx, devfn, ret = 0, did;
+	int tbl_idx, tbl_slot = 0, idx, devfn, ret = 0;
 	struct context_entry *new_ce = NULL, ce;
 	struct context_entry *old_ce = NULL;
 	struct root_entry re;
@@ -1990,10 +2081,20 @@ static int copy_context_table(struct intel_iommu *iommu,
 
 		if (!context_present(&ce))
 			continue;
-
-		did = context_domain_id(&ce);
-		if (did >= 0 && did < cap_ndoms(iommu->cap))
-			ida_alloc_range(&iommu->domain_ida, did, did, GFP_KERNEL);
+		/*
+		 * The context entry only holds a domain ID in legacy mode.
+		 * In scalable mode the IDs are in the PASID table entries.
+		 */
+		if (ext)
+			ret = copy_pasid_table_dids(iommu, &ce);
+		else
+			ret = reserve_domain_id(iommu, context_domain_id(&ce));
+		if (ret) {
+			/* Not yet published through @tbl, so free it here. */
+			iommu_free_pages(new_ce);
+			new_ce = NULL;
+			goto out_unmap;
+		}
 
 		set_context_copied(iommu, bus, devfn);
 		new_ce[idx] = ce;
@@ -2038,12 +2139,16 @@ static int copy_translation_tables(struct intel_iommu *iommu)
 		return -ENOMEM;
 
 	old_rt_phys = rtaddr_reg & VTD_PAGE_MASK;
-	if (!old_rt_phys)
-		return -EINVAL;
+	if (!old_rt_phys) {
+		ret = -EINVAL;
+		goto err_free_bitmap;
+	}
 
 	old_rt = memremap(old_rt_phys, PAGE_SIZE, MEMREMAP_WB);
-	if (!old_rt)
-		return -ENOMEM;
+	if (!old_rt) {
+		ret = -ENOMEM;
+		goto err_free_bitmap;
+	}
 
 	/* This is too big for the stack - allocate it from slab */
 	ctxt_table_entries = ext ? 512 : 256;
@@ -2058,7 +2163,7 @@ static int copy_translation_tables(struct intel_iommu *iommu)
 		if (ret) {
 			pr_err("%s: Failed to copy context table for bus %d\n",
 				iommu->name, bus);
-			continue;
+			goto err_free_ctxt_tbls;
 		}
 	}
 
@@ -2087,10 +2192,29 @@ static int copy_translation_tables(struct intel_iommu *iommu)
 
 	__iommu_flush_cache(iommu, iommu->root_entry, PAGE_SIZE);
 
-	ret = 0;
+	memunmap(old_rt);
+	return 0;
 
+err_free_ctxt_tbls:
+	/*
+	 * None of these tables have been linked into iommu->root_entry yet,
+	 * so they are unreachable and must be freed here.
+	 */
+	for (bus = 0; bus < ctxt_table_entries; bus++)
+		iommu_free_pages(ctxt_tbls[bus]);
+	kfree(ctxt_tbls);
 out_unmap:
 	memunmap(old_rt);
+err_free_bitmap:
+	bitmap_free(iommu->copied_tables);
+	iommu->copied_tables = NULL;
+
+	/*
+	 * Only reservations taken from the old context entries can be in the
+	 * ida at this point; no domain has been allocated on this IOMMU yet.
+	 * ida_destroy() empties it and leaves it ready for reuse.
+	 */
+	ida_destroy(&iommu->domain_ida);
 
 	return ret;
 }
@@ -2912,7 +3036,7 @@ static ssize_t domains_supported_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
 	struct intel_iommu *iommu = dev_to_intel_iommu(dev);
-	return sysfs_emit(buf, "%ld\n", cap_ndoms(iommu->cap));
+	return sysfs_emit(buf, "%ld\n", iommu->max_domain_id);
 }
 static DEVICE_ATTR_RO(domains_supported);
 
@@ -2923,7 +3047,7 @@ static ssize_t domains_used_show(struct device *dev,
 	unsigned int count = 0;
 	int id;
 
-	for (id = 0; id < cap_ndoms(iommu->cap); id++)
+	for (id = 0; id < iommu->max_domain_id; id++)
 		if (ida_exists(&iommu->domain_ida, id))
 			count++;
 
@@ -4438,6 +4562,14 @@ static int identity_domain_attach_dev(struct iommu_domain *domain,
 	if (dev_is_real_dma_subdevice(dev))
 		return 0;
 
+	if (sm_supported(iommu))
+		ret = intel_pasid_setup_pass_through(iommu, dev, IOMMU_NO_PASID);
+	else
+		ret = device_setup_pass_through(dev);
+
+	if (ret)
+		return ret;
+
 	/*
 	 * The identity domain has no iopf_handler, so no IOPF reference is
 	 * taken for it.  The reference held by the old domain must still be
@@ -4445,16 +4577,9 @@ static int identity_domain_attach_dev(struct iommu_domain *domain,
 	 * not affect the IOPF reference count.
 	 */
 	iopf_for_domain_remove(old, dev);
+	info->domain_attached = true;
 
-	if (sm_supported(iommu))
-		ret = intel_pasid_setup_pass_through(iommu, dev, IOMMU_NO_PASID);
-	else
-		ret = device_setup_pass_through(dev);
-
-	if (!ret)
-		info->domain_attached = true;
-
-	return ret;
+	return 0;
 }
 
 static int identity_domain_set_dev_pasid(struct iommu_domain *domain,

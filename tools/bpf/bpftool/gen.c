@@ -101,6 +101,12 @@ static bool get_map_ident(const struct bpf_map *map, char *buf, size_t buf_sz)
 		return true;
 	}
 
+	if (bpf_map__type(map) == BPF_MAP_TYPE_PERCPU_ARRAY) {
+		snprintf(buf, buf_sz, "%s", name + 1);
+		sanitize_identifier(buf);
+		return true;
+	}
+
 	for  (i = 0, n = ARRAY_SIZE(sfxs); i < n; i++) {
 		const char *sfx = sfxs[i], *p;
 
@@ -117,7 +123,7 @@ static bool get_map_ident(const struct bpf_map *map, char *buf, size_t buf_sz)
 
 static bool get_datasec_ident(const char *sec_name, char *buf, size_t buf_sz)
 {
-	static const char *pfxs[] = { ".data", ".rodata", ".bss", ".kconfig" };
+	static const char *pfxs[] = { ".data", ".rodata", ".bss", ".percpu", ".kconfig" };
 	int i, n;
 
 	/* recognize hard coded LLVM section name */
@@ -254,7 +260,7 @@ static const struct btf_type *find_type_for_map(struct btf *btf, const char *map
 	return NULL;
 }
 
-static bool is_mmapable_map(const struct bpf_map *map, char *buf, size_t sz)
+static bool is_skel_data(const struct bpf_map *map, char *buf, size_t sz)
 {
 	size_t tmp_sz;
 
@@ -263,13 +269,24 @@ static bool is_mmapable_map(const struct bpf_map *map, char *buf, size_t sz)
 		return true;
 	}
 
-	if (!bpf_map__is_internal(map) || !(bpf_map__map_flags(map) & BPF_F_MMAPABLE))
+	if (!bpf_map__is_internal(map))
 		return false;
 
 	if (!get_map_ident(map, buf, sz))
 		return false;
 
-	return true;
+	if (bpf_map__map_flags(map) & BPF_F_MMAPABLE)
+		return true;
+
+	if (bpf_map__type(map) == BPF_MAP_TYPE_PERCPU_ARRAY)
+		return bpf_map__btf_value_type_id(map) != 0;
+
+	return false;
+}
+
+static bool is_mmapable_map(const struct bpf_map *map, char *buf, size_t sz)
+{
+	return is_skel_data(map, buf, sz) && bpf_map__type(map) != BPF_MAP_TYPE_PERCPU_ARRAY;
 }
 
 static int codegen_datasecs(struct bpf_object *obj, const char *obj_name)
@@ -287,7 +304,7 @@ static int codegen_datasecs(struct bpf_object *obj, const char *obj_name)
 
 	bpf_object__for_each_map(map, obj) {
 		/* only generate definitions for memory-mapped internal maps */
-		if (!is_mmapable_map(map, map_ident, sizeof(map_ident)))
+		if (!is_skel_data(map, map_ident, sizeof(map_ident)))
 			continue;
 
 		sec = find_type_for_map(btf, map_ident);
@@ -483,16 +500,6 @@ static void print_hex(const char *data, int data_sz)
 	}
 }
 
-static size_t bpf_map_mmap_sz(const struct bpf_map *map)
-{
-	long page_sz = sysconf(_SC_PAGE_SIZE);
-	size_t map_sz;
-
-	map_sz = (size_t)roundup(bpf_map__value_size(map), 8) * bpf_map__max_entries(map);
-	map_sz = roundup(map_sz, page_sz);
-	return map_sz;
-}
-
 /* Emit type size asserts for all top-level fields in memory-mapped internal maps. */
 static void codegen_asserts(struct bpf_object *obj, const char *obj_name)
 {
@@ -517,7 +524,7 @@ static void codegen_asserts(struct bpf_object *obj, const char *obj_name)
 		", obj_name);
 
 	bpf_object__for_each_map(map, obj) {
-		if (!is_mmapable_map(map, map_ident, sizeof(map_ident)))
+		if (!is_skel_data(map, map_ident, sizeof(map_ident)))
 			continue;
 
 		sec = find_type_for_map(btf, map_ident);
@@ -668,10 +675,9 @@ static void codegen_destroy(struct bpf_object *obj, const char *obj_name)
 	bpf_object__for_each_map(map, obj) {
 		if (!get_map_ident(map, ident, sizeof(ident)))
 			continue;
-		if (bpf_map__is_internal(map) &&
-		    (bpf_map__map_flags(map) & BPF_F_MMAPABLE))
-			printf("\tskel_free_map_data(skel->%1$s, skel->maps.%1$s.initial_value, %2$zu);\n",
-			       ident, bpf_map_mmap_sz(map));
+		if (is_skel_data(map, ident, sizeof(ident)))
+			printf("\tskel_free_map_data(skel->%1$s, skel->maps.%1$s.initial_value, %2$u, %3$u);\n",
+			       ident, bpf_map__value_size(map), bpf_map__max_entries(map));
 		codegen("\
 			\n\
 				skel_closenz(skel->maps.%1$s.map_fd);	    \n\
@@ -731,17 +737,17 @@ static int gen_trace(struct bpf_object *obj, const char *obj_name, const char *h
 		{							    \n\
 			struct %1$s *skel;				    \n\
 									    \n\
-			skel = skel_alloc(sizeof(*skel));		    \n\
+			skel = (struct %1$s *)skel_alloc(sizeof(*skel));    \n\
 			if (!skel)					    \n\
 				goto cleanup;				    \n\
-			skel->ctx.sz = (void *)&skel->links - (void *)skel; \n\
+			skel->ctx.sz = (char *)&skel->links - (char *)skel; \n\
 		",
 		obj_name, opts.data_sz);
 	bpf_object__for_each_map(map, obj) {
 		const void *mmap_data = NULL;
 		size_t mmap_size = 0;
 
-		if (!is_mmapable_map(map, ident, sizeof(ident)))
+		if (!is_skel_data(map, ident, sizeof(ident)))
 			continue;
 
 		codegen("\
@@ -755,13 +761,13 @@ static int gen_trace(struct bpf_object *obj, const char *obj_name, const char *h
 		\n\
 		\";							    \n\
 									    \n\
-				skel->%1$s = skel_prep_map_data((void *)data, %2$zd,\n\
+				skel->%1$s = (__typeof__(skel->%1$s))skel_prep_map_data((void *)data, %2$u, %3$u,\n\
 								sizeof(data) - 1);\n\
 				if (!skel->%1$s)			    \n\
 					goto cleanup;			    \n\
 				skel->maps.%1$s.initial_value = (__u64) (long) skel->%1$s;\n\
 			}						    \n\
-			", ident, bpf_map_mmap_sz(map));
+			", ident, bpf_map__value_size(map), bpf_map__max_entries(map));
 	}
 	codegen("\
 		\n\
@@ -847,8 +853,22 @@ static int gen_trace(struct bpf_object *obj, const char *obj_name, const char *h
 	bpf_object__for_each_map(map, obj) {
 		const char *mmap_flags;
 
-		if (!is_mmapable_map(map, ident, sizeof(ident)))
+		if (!is_skel_data(map, ident, sizeof(ident)))
 			continue;
+
+		if (bpf_map__type(map) == BPF_MAP_TYPE_PERCPU_ARRAY) {
+			codegen("\
+		\n\
+			err = skel_protect_map_data(skel->%1$s, &skel->maps.%1$s.initial_value, %2$u, %3$u);\n\
+			if (err)					    \n\
+				return err;				    \n\
+		#ifdef __KERNEL__					    \n\
+			skel->%1$s = NULL;				    \n\
+		#endif							    \n\
+			",
+			ident, bpf_map__value_size(map), bpf_map__max_entries(map));
+			continue;
+		}
 
 		if (bpf_map__map_flags(map) & BPF_F_RDONLY_PROG)
 			mmap_flags = "PROT_READ";
@@ -857,12 +877,12 @@ static int gen_trace(struct bpf_object *obj, const char *obj_name, const char *h
 
 		codegen("\
 		\n\
-			skel->%1$s = skel_finalize_map_data(&skel->maps.%1$s.initial_value,  \n\
-							%2$zd, %3$s, skel->maps.%1$s.map_fd);\n\
+			skel->%1$s = (__typeof__(skel->%1$s))skel_finalize_map_data(&skel->maps.%1$s.initial_value,\n\
+							%2$u, %3$u, %4$s, skel->maps.%1$s.map_fd);\n\
 			if (!skel->%1$s)				    \n\
 				return -ENOMEM;				    \n\
 			",
-		       ident, bpf_map_mmap_sz(map), mmap_flags);
+		       ident, bpf_map__value_size(map), bpf_map__max_entries(map), mmap_flags);
 	}
 	codegen("\
 		\n\
@@ -953,8 +973,7 @@ codegen_maps_skeleton(struct bpf_object *obj, size_t map_cnt, bool mmaped, bool 
 				map->map = &obj->maps.%s;	    \n\
 			",
 			i, bpf_map__name(map), ident);
-		/* memory-mapped internal maps */
-		if (mmaped && is_mmapable_map(map, ident, sizeof(ident))) {
+		if (mmaped && is_skel_data(map, ident, sizeof(ident))) {
 			printf("\tmap->mmaped = (void **)&obj->%s;\n", ident);
 		}
 

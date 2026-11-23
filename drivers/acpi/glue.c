@@ -59,19 +59,34 @@ int unregister_acpi_bus_type(struct acpi_bus_type *type)
 }
 EXPORT_SYMBOL_GPL(unregister_acpi_bus_type);
 
-static struct acpi_bus_type *acpi_get_bus_type(struct device *dev)
+static struct acpi_device *acpi_companion_lookup(struct device *dev)
 {
-	struct acpi_bus_type *tmp, *ret = NULL;
+	struct acpi_bus_type *type;
 
-	down_read(&bus_type_sem);
-	list_for_each_entry(tmp, &bus_type_list, list) {
-		if (tmp->match(dev)) {
-			ret = tmp;
-			break;
+	guard(rwsem_read)(&bus_type_sem);
+
+	list_for_each_entry(type, &bus_type_list, list) {
+		struct acpi_device *adev;
+
+		if (!type->match(dev))
+			continue;
+
+		adev = type->find_companion(dev);
+		if (!adev) {
+			dev_dbg(dev, "ACPI companion not found\n");
+			return NULL;
 		}
+		if (acpi_bind_one(dev, adev)) {
+			dev_dbg(dev, "Binding to ACPI companion failed\n");
+			return NULL;
+		}
+		if (type->setup)
+			type->setup(dev);
+
+		return adev;
 	}
-	up_read(&bus_type_sem);
-	return ret;
+
+	return NULL;
 }
 
 #define FIND_CHILD_MIN_SCORE	1
@@ -316,13 +331,13 @@ int acpi_bind_one(struct device *dev, struct acpi_device *acpi_dev)
 }
 EXPORT_SYMBOL_GPL(acpi_bind_one);
 
-int acpi_unbind_one(struct device *dev)
+void acpi_unbind_one(struct device *dev)
 {
 	struct acpi_device *acpi_dev = ACPI_COMPANION(dev);
 	struct acpi_device_physical_node *entry;
 
 	if (!acpi_dev)
-		return 0;
+		return;
 
 	mutex_lock(&acpi_dev->physical_node_lock);
 
@@ -337,15 +352,17 @@ int acpi_unbind_one(struct device *dev)
 			sysfs_remove_link(&acpi_dev->dev.kobj, physnode_name);
 			sysfs_remove_link(&dev->kobj, "firmware_node");
 			ACPI_COMPANION_SET(dev, NULL);
+
+			mutex_unlock(&acpi_dev->physical_node_lock);
+
 			/* Drop references taken by acpi_bind_one(). */
 			put_device(dev);
 			acpi_dev_put(acpi_dev);
 			kfree(entry);
-			break;
+			return;
 		}
 
 	mutex_unlock(&acpi_dev->physical_node_lock);
-	return 0;
 }
 EXPORT_SYMBOL_GPL(acpi_unbind_one);
 
@@ -354,48 +371,29 @@ void acpi_device_notify(struct device *dev)
 	struct acpi_device *adev;
 	int ret;
 
+	/* ACPI devices have no ACPI companions. */
+	if (dev->bus == &acpi_bus_type)
+		return;
+
 	ret = acpi_bind_one(dev, NULL);
 	if (ret) {
-		struct acpi_bus_type *type = acpi_get_bus_type(dev);
-
-		if (!type)
-			goto err;
-
-		adev = type->find_companion(dev);
-		if (!adev) {
-			dev_dbg(dev, "ACPI companion not found\n");
-			goto err;
-		}
-		ret = acpi_bind_one(dev, adev);
-		if (ret)
-			goto err;
-
-		if (type->setup) {
-			type->setup(dev);
-			goto done;
-		}
+		adev = acpi_companion_lookup(dev);
+		if (!adev)
+			return;
 	} else {
 		adev = ACPI_COMPANION(dev);
 
 		if (dev_is_pci(dev)) {
 			pci_acpi_setup(dev, adev);
-			goto done;
 		} else if (dev_is_platform(dev)) {
 			acpi_configure_pmsi_domain(dev);
+
+			if (adev->handler && adev->handler->bind)
+				adev->handler->bind(dev);
 		}
 	}
 
-	if (adev->handler && adev->handler->bind)
-		adev->handler->bind(dev);
-
-done:
-	acpi_handle_debug(ACPI_HANDLE(dev), "Bound to device %s\n",
-			  dev_name(dev));
-
-	return;
-
-err:
-	dev_dbg(dev, "No ACPI support\n");
+	dev_dbg(dev, "Bound to ACPI device %s\n", acpi_dev_name(adev));
 }
 
 void acpi_device_notify_remove(struct device *dev)

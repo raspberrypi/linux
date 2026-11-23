@@ -84,7 +84,7 @@ static inline struct blk_mq_hw_ctx *blk_mq_map_queue_type(struct request_queue *
 							  enum hctx_type type,
 							  unsigned int cpu)
 {
-	return xa_load(&q->hctx_table, q->tag_set->map[type].mq_map[cpu]);
+	return q->queue_hw_ctx[q->tag_set->map[type].mq_map[cpu]];
 }
 
 static inline enum hctx_type blk_mq_get_hctx_type(blk_opf_t opf)
@@ -177,6 +177,8 @@ struct blk_mq_alloc_data {
 struct blk_mq_tags *blk_mq_init_tags(unsigned int nr_tags,
 		unsigned int reserved_tags, unsigned int flags, int node);
 void blk_mq_free_tags(struct blk_mq_tag_set *set, struct blk_mq_tags *tags);
+
+extern struct srcu_struct blk_mq_tags_srcu;
 
 unsigned int blk_mq_get_tag(struct blk_mq_alloc_data *data);
 unsigned long blk_mq_get_tags(struct blk_mq_alloc_data *data, int nr_tags,

@@ -22,7 +22,6 @@ struct interface {
 	struct socket		*ksmbd_socket;
 	struct list_head	entry;
 	char			*name;
-	struct mutex		sock_release_lock;
 	int			state;
 };
 
@@ -40,6 +39,7 @@ struct tcp_transport {
 static const struct ksmbd_transport_ops ksmbd_tcp_transport_ops;
 
 static void tcp_stop_kthread(struct task_struct *kthread);
+static void ksmbd_tcp_stop_listener(struct interface *iface);
 static struct interface *alloc_iface(char *ifname);
 static void ksmbd_tcp_disconnect(struct ksmbd_transport *t);
 
@@ -55,19 +55,6 @@ static inline void ksmbd_tcp_nodelay(struct socket *sock)
 static inline void ksmbd_tcp_reuseaddr(struct socket *sock)
 {
 	sock_set_reuseaddr(sock->sk);
-}
-
-static inline void ksmbd_tcp_rcv_timeout(struct socket *sock, s64 secs)
-{
-	if (secs && secs < MAX_SCHEDULE_TIMEOUT / HZ - 1)
-		WRITE_ONCE(sock->sk->sk_rcvtimeo, secs * HZ);
-	else
-		WRITE_ONCE(sock->sk->sk_rcvtimeo, MAX_SCHEDULE_TIMEOUT);
-}
-
-static inline void ksmbd_tcp_snd_timeout(struct socket *sock, s64 secs)
-{
-	sock_set_sndtimeo(sock->sk, secs);
 }
 
 static struct tcp_transport *alloc_transport(struct socket *client_sk)
@@ -239,20 +226,14 @@ static int ksmbd_kthread_fn(void *p)
 	unsigned int max_ip_conns;
 
 	while (!kthread_should_stop()) {
-		mutex_lock(&iface->sock_release_lock);
 		if (!iface->ksmbd_socket) {
-			mutex_unlock(&iface->sock_release_lock);
 			break;
 		}
-		ret = kernel_accept(iface->ksmbd_socket, &client_sk,
-				    SOCK_NONBLOCK);
-		mutex_unlock(&iface->sock_release_lock);
-		if (ret) {
-			if (ret == -EAGAIN)
-				/* check for new connections every 100 msecs */
-				schedule_timeout_interruptible(HZ / 10);
+		ret = kernel_accept(iface->ksmbd_socket, &client_sk, 0);
+		if (ret == -EINVAL)
+			break;
+		if (ret)
 			continue;
-		}
 
 		if (!server_conf.max_ip_connections)
 			goto skip_max_ip_conns_limit;
@@ -341,13 +322,20 @@ static int ksmbd_tcp_run_kthread(struct interface *iface)
 	int rc;
 	struct task_struct *kthread;
 
-	kthread = kthread_run(ksmbd_kthread_fn, (void *)iface, "ksmbd-%s",
-			      iface->name);
+	kthread = kthread_create(ksmbd_kthread_fn, (void *)iface, "ksmbd-%s",
+				 iface->name);
 	if (IS_ERR(kthread)) {
 		rc = PTR_ERR(kthread);
 		return rc;
 	}
+
+	/*
+	 * The listener can exit after its socket is shutdown, so keep the
+	 * task_struct alive until the caller has stopped it.
+	 */
+	get_task_struct(kthread);
 	iface->ksmbd_kthread = kthread;
+	wake_up_process(kthread);
 
 	return 0;
 }
@@ -472,10 +460,6 @@ static void tcp_destroy_socket(struct socket *ksmbd_socket)
 	if (!ksmbd_socket)
 		return;
 
-	/* set zero to timeout */
-	ksmbd_tcp_rcv_timeout(ksmbd_socket, 0);
-	ksmbd_tcp_snd_timeout(ksmbd_socket, 0);
-
 	ret = kernel_sock_shutdown(ksmbd_socket, SHUT_RDWR);
 	if (ret)
 		pr_err("Failed to shutdown socket: %d\n", ret);
@@ -545,9 +529,6 @@ static int create_socket(struct interface *iface)
 		pr_err("Failed to bind socket: %d\n", ret);
 		goto out_error;
 	}
-
-	ksmbd_socket->sk->sk_rcvtimeo = KSMBD_TCP_RECV_TIMEOUT;
-	ksmbd_socket->sk->sk_sndtimeo = KSMBD_TCP_SEND_TIMEOUT;
 
 	ret = kernel_listen(ksmbd_socket, KSMBD_SOCKET_BACKLOG);
 	if (ret) {
@@ -627,13 +608,7 @@ static int ksmbd_netdev_event(struct notifier_block *nb, unsigned long event,
 		if (iface && iface->state == IFACE_STATE_CONFIGURED) {
 			ksmbd_debug(CONN, "netdev-down event: netdev(%s) is going down\n",
 					iface->name);
-			tcp_stop_kthread(iface->ksmbd_kthread);
-			iface->ksmbd_kthread = NULL;
-			mutex_lock(&iface->sock_release_lock);
-			tcp_destroy_socket(iface->ksmbd_socket);
-			iface->ksmbd_socket = NULL;
-			mutex_unlock(&iface->sock_release_lock);
-
+			ksmbd_tcp_stop_listener(iface);
 			iface->state = IFACE_STATE_DOWN;
 			break;
 		}
@@ -661,18 +636,38 @@ static void tcp_stop_kthread(struct task_struct *kthread)
 	if (!kthread)
 		return;
 
-	ret = kthread_stop(kthread);
+	ret = kthread_stop_put(kthread);
 	if (ret)
 		pr_err("failed to stop forker thread\n");
+}
+
+static void ksmbd_tcp_stop_listener(struct interface *iface)
+{
+	if (iface->ksmbd_socket)
+		kernel_sock_shutdown(iface->ksmbd_socket, SHUT_RDWR);
+
+	tcp_stop_kthread(iface->ksmbd_kthread);
+	iface->ksmbd_kthread = NULL;
+
+	if (iface->ksmbd_socket) {
+		sock_release(iface->ksmbd_socket);
+		iface->ksmbd_socket = NULL;
+	}
 }
 
 void ksmbd_tcp_destroy(void)
 {
 	struct interface *iface, *tmp;
+	LIST_HEAD(iface_list_to_free);
 
 	unregister_netdevice_notifier(&ksmbd_netdev_notifier);
 
-	list_for_each_entry_safe(iface, tmp, &iface_list, entry) {
+	rtnl_lock();
+	list_splice_init(&iface_list, &iface_list_to_free);
+	rtnl_unlock();
+
+	list_for_each_entry_safe(iface, tmp, &iface_list_to_free, entry) {
+		ksmbd_tcp_stop_listener(iface);
 		list_del(&iface->entry);
 		kfree(iface->name);
 		kfree(iface);
@@ -695,7 +690,6 @@ static struct interface *alloc_iface(char *ifname)
 	iface->name = ifname;
 	iface->state = IFACE_STATE_DOWN;
 	list_add(&iface->entry, &iface_list);
-	mutex_init(&iface->sock_release_lock);
 	return iface;
 }
 

@@ -17,6 +17,7 @@
 #include <net/ax25.h>
 #include <linux/inet.h>
 #include <linux/netdevice.h>
+#include <linux/rtnetlink.h>
 #include <net/arp.h>
 #include <linux/if_arp.h>
 #include <linux/skbuff.h>
@@ -462,6 +463,7 @@ int rose_add_loopback_node(const rose_address *address)
 	int err = 0;
 
 	spin_lock_bh(&rose_node_list_lock);
+	spin_lock_bh(&rose_neigh_list_lock);
 
 	rose_node = rose_node_list;
 	while (rose_node != NULL) {
@@ -494,6 +496,7 @@ int rose_add_loopback_node(const rose_address *address)
 	rose_neigh_hold(rose_loopback_neigh);
 
 out:
+	spin_unlock_bh(&rose_neigh_list_lock);
 	spin_unlock_bh(&rose_node_list_lock);
 
 	return err;
@@ -507,6 +510,7 @@ void rose_del_loopback_node(const rose_address *address)
 	struct rose_node *rose_node;
 
 	spin_lock_bh(&rose_node_list_lock);
+	spin_lock_bh(&rose_neigh_list_lock);
 
 	rose_node = rose_node_list;
 	while (rose_node != NULL) {
@@ -526,6 +530,7 @@ void rose_del_loopback_node(const rose_address *address)
 	rose_neigh_put(rose_loopback_neigh);
 
 out:
+	spin_unlock_bh(&rose_neigh_list_lock);
 	spin_unlock_bh(&rose_node_list_lock);
 }
 
@@ -829,23 +834,29 @@ int rose_rt_ioctl(unsigned int cmd, void __user *arg)
 	case SIOCADDRT:
 		if (copy_from_user(&rose_route, arg, sizeof(struct rose_route_struct)))
 			return -EFAULT;
-		if ((dev = rose_ax25_dev_find(rose_route.device)) == NULL)
-			return -EINVAL;
 		if (rose_dev_exists(&rose_route.address)) /* Can't add routes to ourself */
 			return -EINVAL;
 		if (rose_route.mask > 10) /* Mask can't be more than 10 digits */
 			return -EINVAL;
 		if (rose_route.ndigis > AX25_MAX_DIGIS)
 			return -EINVAL;
-		err = rose_add_node(&rose_route, dev);
+		/*
+		 * RTNL keeps the device up until the neighbour that uses it
+		 * is on the list, where rose_rt_device_down() finds it.
+		 */
+		rtnl_lock();
+		dev = rose_ax25_dev_find(rose_route.device);
+		err = dev ? rose_add_node(&rose_route, dev) : -EINVAL;
+		rtnl_unlock();
 		return err;
 
 	case SIOCDELRT:
 		if (copy_from_user(&rose_route, arg, sizeof(struct rose_route_struct)))
 			return -EFAULT;
-		if ((dev = rose_ax25_dev_find(rose_route.device)) == NULL)
-			return -EINVAL;
-		err = rose_del_node(&rose_route, dev);
+		rtnl_lock();
+		dev = rose_ax25_dev_find(rose_route.device);
+		err = dev ? rose_del_node(&rose_route, dev) : -EINVAL;
+		rtnl_unlock();
 		return err;
 
 	case SIOCRSCLRRT:
@@ -958,12 +969,14 @@ void rose_link_device_down(struct net_device *dev)
 {
 	struct rose_neigh *rose_neigh;
 
+	spin_lock_bh(&rose_neigh_list_lock);
 	for (rose_neigh = rose_neigh_list; rose_neigh != NULL; rose_neigh = rose_neigh->next) {
 		if (rose_neigh->dev == dev) {
 			rose_del_route_by_neigh(rose_neigh);
 			rose_kill_by_neigh(rose_neigh);
 		}
 	}
+	spin_unlock_bh(&rose_neigh_list_lock);
 }
 
 /*
@@ -1132,8 +1145,24 @@ int rose_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 								    120);
 					goto out;
 				}
-				/* Remove an existing unused route */
-				rose_remove_route(rose_route);
+				/*
+				 *	Another call on the LCI of a through
+				 *	route: the neighbour no longer has the
+				 *	call it was built for.  Clear the other
+				 *	half, which keeps the route until its
+				 *	Clear Confirmation, and leave the LCI
+				 *	to the new call.
+				 */
+				if (rose_route->neigh2 != NULL) {
+					rose_neigh_put(rose_route->neigh1);
+					rose_route->neigh1 = NULL;
+					rose_transmit_clear_request(rose_route->neigh2,
+								    rose_route->lci2,
+								    ROSE_NETWORK_CONGESTION,
+								    0);
+				} else {
+					rose_remove_route(rose_route);
+				}
 				break;
 			} else if (rose_route->neigh2 != NULL) {
 				skb->data[0] &= 0xF0;
@@ -1167,8 +1196,24 @@ int rose_route_frame(struct sk_buff *skb, ax25_cb *ax25)
 								    120);
 					goto out;
 				}
-				/* Remove an existing unused route */
-				rose_remove_route(rose_route);
+				/*
+				 *	Another call on the LCI of a through
+				 *	route: the neighbour no longer has the
+				 *	call it was built for.  Clear the other
+				 *	half, which keeps the route until its
+				 *	Clear Confirmation, and leave the LCI
+				 *	to the new call.
+				 */
+				if (rose_route->neigh1 != NULL) {
+					rose_neigh_put(rose_route->neigh2);
+					rose_route->neigh2 = NULL;
+					rose_transmit_clear_request(rose_route->neigh1,
+								    rose_route->lci1,
+								    ROSE_NETWORK_CONGESTION,
+								    0);
+				} else {
+					rose_remove_route(rose_route);
+				}
 				break;
 			} else if (rose_route->neigh1 != NULL) {
 				skb->data[0] &= 0xF0;

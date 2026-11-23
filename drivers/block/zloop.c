@@ -682,7 +682,7 @@ static int zloop_open(struct gendisk *disk, blk_mode_t mode)
 }
 
 static int zloop_report_zones(struct gendisk *disk, sector_t sector,
-		unsigned int nr_zones, report_zones_cb cb, void *data)
+		unsigned int nr_zones, struct blk_report_zones_args *args)
 {
 	struct zloop_device *zlo = disk->private_data;
 	struct blk_zone blkz = {};
@@ -722,7 +722,7 @@ static int zloop_report_zones(struct gendisk *disk, sector_t sector,
 
 		mutex_unlock(&zone->lock);
 
-		ret = cb(&blkz, i, data);
+		ret = disk_report_zone(disk, &blkz, i, args);
 		if (ret)
 			return ret;
 	}
@@ -813,8 +813,6 @@ static int zloop_init_zone(struct zloop_device *zlo, struct zloop_options *opts,
 {
 	struct zloop_zone *zone = &zlo->zones[zone_no];
 	int oflags = O_RDWR;
-	struct kstat stat;
-	sector_t file_sectors;
 	int ret;
 
 	mutex_init(&zone->lock);
@@ -826,38 +824,49 @@ static int zloop_init_zone(struct zloop_device *zlo, struct zloop_options *opts,
 	if (!opts->buffered_io)
 		oflags |= O_DIRECT;
 
+	zone->file = zloop_filp_open_fmt(oflags, 0600, "%s/%u/%s-%06u",
+				zlo->base_dir, zlo->id,
+				zone_no < zlo->nr_conv_zones ? "cnv" : "seq",
+				zone_no);
+	if (IS_ERR(zone->file)) {
+		pr_err("Failed to open zone %u file %s/%u/%s-%06u (err=%ld)",
+		       zone_no, zlo->base_dir, zlo->id,
+		       zone_no < zlo->nr_conv_zones ? "cnv" : "seq",
+		       zone_no, PTR_ERR(zone->file));
+		return PTR_ERR(zone->file);
+	}
+
+	if (!zone->file->f_op->read_iter || !zone->file->f_op->write_iter) {
+		ret = -EINVAL;
+		goto out_fput;
+	}
+
+	if (!zlo->block_size) {
+		ret = zloop_get_block_size(zlo, zone);
+		if (ret)
+			goto out_fput;
+	}
+
 	if (zone_no < zlo->nr_conv_zones) {
+		sector_t file_sectors;
+		struct kstat stat;
+
 		/* Conventional zone file. */
 		set_bit(ZLOOP_ZONE_CONV, &zone->flags);
 		zone->cond = BLK_ZONE_COND_NOT_WP;
 		zone->wp = U64_MAX;
 
-		zone->file = zloop_filp_open_fmt(oflags, 0600, "%s/%u/cnv-%06u",
-					zlo->base_dir, zlo->id, zone_no);
-		if (IS_ERR(zone->file)) {
-			pr_err("Failed to open zone %u file %s/%u/cnv-%06u (err=%ld)",
-			       zone_no, zlo->base_dir, zlo->id, zone_no,
-			       PTR_ERR(zone->file));
-			return PTR_ERR(zone->file);
-		}
-
-		if (!zlo->block_size) {
-			ret = zloop_get_block_size(zlo, zone);
-			if (ret)
-				return ret;
-		}
-
 		ret = vfs_getattr(&zone->file->f_path, &stat, STATX_SIZE, 0);
 		if (ret < 0) {
 			pr_err("Failed to get zone %u file stat\n", zone_no);
-			return ret;
+			goto out_fput;
 		}
 		file_sectors = stat.size >> SECTOR_SHIFT;
 
 		if (restore && file_sectors != zlo->zone_size) {
 			pr_err("Invalid conventional zone %u file size (%llu sectors != %llu)\n",
 			       zone_no, file_sectors, zlo->zone_capacity);
-			return ret;
+			goto out_fput;
 		}
 
 		ret = vfs_truncate(&zone->file->f_path,
@@ -865,34 +874,21 @@ static int zloop_init_zone(struct zloop_device *zlo, struct zloop_options *opts,
 		if (ret < 0) {
 			pr_err("Failed to truncate zone %u file (err=%d)\n",
 			       zone_no, ret);
-			return ret;
+			goto out_fput;
 		}
-
-		return 0;
-	}
-
-	/* Sequential zone file. */
-	zone->file = zloop_filp_open_fmt(oflags, 0600, "%s/%u/seq-%06u",
-					 zlo->base_dir, zlo->id, zone_no);
-	if (IS_ERR(zone->file)) {
-		pr_err("Failed to open zone %u file %s/%u/seq-%06u (err=%ld)",
-		       zone_no, zlo->base_dir, zlo->id, zone_no,
-		       PTR_ERR(zone->file));
-		return PTR_ERR(zone->file);
-	}
-
-	if (!zlo->block_size) {
-		ret = zloop_get_block_size(zlo, zone);
+	} else {
+		/* Sequential zone file. */
+		mutex_lock(&zone->lock);
+		ret = zloop_update_seq_zone(zlo, zone_no);
+		mutex_unlock(&zone->lock);
 		if (ret)
-			return ret;
+			goto out_fput;
 	}
 
-	zloop_get_block_size(zlo, zone);
+	return 0;
 
-	mutex_lock(&zone->lock);
-	ret = zloop_update_seq_zone(zlo, zone_no);
-	mutex_unlock(&zone->lock);
-
+out_fput:
+	fput(zone->file);
 	return ret;
 }
 

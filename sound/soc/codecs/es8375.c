@@ -579,20 +579,24 @@ static int es8375_resume(struct snd_soc_component *component)
 {
 	struct es8375_priv *es8375 = snd_soc_component_get_drvdata(component);
 	unsigned int reg;
+	int ret;
 
 	regcache_cache_only(es8375->regmap, false);
 	regcache_cache_bypass(es8375->regmap, true);
-	regmap_read(es8375->regmap, ES8375_CLK_MGR2, &reg);
+	ret = regmap_read(es8375->regmap, ES8375_CLK_MGR2, &reg);
 	regcache_cache_bypass(es8375->regmap, false);
+	if (ret)
+		return ret;
 
-	if (reg == 0x00)
+	if (reg == 0x00) {
 		es8375_init(component);
-	else
-		es8375_set_bias_level(component, SND_SOC_BIAS_ON);
+	} else {
+		ret = es8375_set_bias_level(component, SND_SOC_BIAS_ON);
+		if (ret)
+			return ret;
+	}
 
-	regcache_sync(es8375->regmap);
-
-	return 0;
+	return regcache_sync(es8375->regmap);
 }
 
 static int es8375_codec_probe(struct snd_soc_component *component)
@@ -663,7 +667,7 @@ static int es8375_read_device_properities(struct device *dev, struct es8375_priv
 		return ret;
 	}
 
-	es8375->mclk = devm_clk_get(dev, "mclk");
+	es8375->mclk = devm_clk_get_optional(dev, "mclk");
 	if (IS_ERR(es8375->mclk))
 		return dev_err_probe(dev, PTR_ERR(es8375->mclk), "unable to get mclk\n");
 

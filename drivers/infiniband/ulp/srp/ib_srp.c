@@ -42,6 +42,7 @@
 #include <linux/jiffies.h>
 #include <linux/lockdep.h>
 #include <linux/inet.h>
+#include <net/net_namespace.h>
 #include <rdma/ib_cache.h>
 
 #include <linux/atomic.h>
@@ -1047,7 +1048,7 @@ static void srp_remove_target(struct srp_target_port *target)
 	scsi_remove_host(target->scsi_host);
 	srp_stop_rport_timers(target->rport);
 	srp_disconnect_target(target);
-	kobj_ns_drop(KOBJ_NS_TYPE_NET, target->net);
+	kobj_ns_drop(KOBJ_NS_TYPE_NET, to_ns_common(target->net));
 	for (i = 0; i < target->ch_count; i++) {
 		ch = &target->ch[i];
 		srp_free_ch_ib(target, ch);
@@ -3478,7 +3479,7 @@ static int srp_parse_options(struct net *net, const char *buf,
 			}
 			ret = srp_parse_in(net, &target->rdma_cm.dst.ss, p,
 					   &has_port);
-			if (!has_port)
+			if (ret == 0 && !has_port)
 				ret = -EINVAL;
 			if (ret < 0) {
 				pr_warn("bad dest parameter '%s'\n", p);
@@ -3746,7 +3747,7 @@ static ssize_t add_target_store(struct device *dev,
 
 	target = host_to_target(target_host);
 
-	target->net		= kobj_ns_grab_current(KOBJ_NS_TYPE_NET);
+	target->net		= to_net_ns(kobj_ns_grab_current(KOBJ_NS_TYPE_NET));
 	target->io_class	= SRP_REV16A_IB_IO_CLASS;
 	target->scsi_host	= target_host;
 	target->srp_host	= host;
@@ -3939,7 +3940,7 @@ put:
 		 * earlier in this function.
 		 */
 		if (target->state != SRP_TARGET_REMOVED)
-			kobj_ns_drop(KOBJ_NS_TYPE_NET, target->net);
+			kobj_ns_drop(KOBJ_NS_TYPE_NET, to_ns_common(target->net));
 		scsi_host_put(target->scsi_host);
 	}
 

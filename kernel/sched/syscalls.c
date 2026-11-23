@@ -713,6 +713,9 @@ change:
 	prev_class = p->sched_class;
 	next_class = __setscheduler_class(policy, newprio);
 
+	if (prev_class != next_class)
+		queue_flags |= DEQUEUE_CLASS;
+
 	if (prev_class != next_class && p->se.sched_delayed)
 		dequeue_task(rq, p, DEQUEUE_SLEEP | DEQUEUE_DELAYED | DEQUEUE_NOCLOCK);
 
@@ -725,7 +728,6 @@ change:
 			__setscheduler_dl_pi(newprio, policy, p, scope);
 		}
 		__setscheduler_uclamp(p, attr);
-		check_class_changing(rq, p, prev_class);
 
 		if (scope->queued) {
 			/*
@@ -737,7 +739,8 @@ change:
 		}
 	}
 
-	check_class_changed(rq, p, prev_class, oldprio);
+	if (!(queue_flags & DEQUEUE_CLASS))
+		check_prio_changed(rq, p, oldprio);
 
 	/* Avoid rq from going away on us: */
 	preempt_disable();

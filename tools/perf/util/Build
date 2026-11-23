@@ -129,22 +129,22 @@ perf-util-y += iostat.o
 perf-util-y += stream.o
 perf-util-y += kvm-stat.o
 perf-util-y += lock-contention.o
-perf-util-$(CONFIG_AUXTRACE) += auxtrace.o
+perf-util-y += auxtrace.o
 perf-util-y += intel-pt-decoder/
-perf-util-$(CONFIG_AUXTRACE) += intel-pt.o
-perf-util-$(CONFIG_AUXTRACE) += intel-bts.o
-perf-util-$(CONFIG_AUXTRACE) += arm-spe.o
-perf-util-$(CONFIG_AUXTRACE) += arm-spe-decoder/
-perf-util-$(CONFIG_AUXTRACE) += hisi-ptt.o
-perf-util-$(CONFIG_AUXTRACE) += hisi-ptt-decoder/
-perf-util-$(CONFIG_AUXTRACE) += s390-cpumsf.o
-perf-util-$(CONFIG_AUXTRACE) += powerpc-vpadtl.o
+perf-util-y += intel-pt.o
+perf-util-y += intel-bts.o
+perf-util-y += arm-spe.o
+perf-util-y += arm-spe-decoder/
+perf-util-y += hisi-ptt.o
+perf-util-y += hisi-ptt-decoder/
+perf-util-y += s390-cpumsf.o
+perf-util-y += powerpc-vpadtl.o
 
 ifdef CONFIG_LIBOPENCSD
-perf-util-$(CONFIG_AUXTRACE) += cs-etm.o
-perf-util-$(CONFIG_AUXTRACE) += cs-etm-decoder/
+perf-util-y += cs-etm.o
+perf-util-y += cs-etm-decoder/
 endif
-perf-util-$(CONFIG_AUXTRACE) += cs-etm-base.o
+perf-util-y += cs-etm-base.o
 
 perf-util-y += parse-branch-options.o
 perf-util-y += dump-insn.o
@@ -232,7 +232,7 @@ perf-util-$(CONFIG_LIBUNWIND_X86)      += libunwind/x86_32.o
 perf-util-$(CONFIG_LIBUNWIND_AARCH64)  += libunwind/arm64.o
 
 ifeq ($(CONFIG_LIBTRACEEVENT),y)
-  perf-util-$(CONFIG_LIBBABELTRACE) += data-convert-bt.o
+  perf-util-$(CONFIG_BABELTRACE2_CTF_WRITER) += data-convert-bt.o
 endif
 
 perf-util-y += data-convert-json.o
@@ -340,7 +340,7 @@ bison_flags := -DYYENABLE_NLS=0 -Wno-unused-but-set-variable
 
 # Old clangs don't grok -Wno-unused-but-set-variable, remove it
 ifeq ($(CC_NO_CLANG), 0)
-  CLANG_VERSION := $(shell $(CLANG) --version | head -1 | sed 's/.*clang version \([[:digit:]]\+.[[:digit:]]\+.[[:digit:]]\+\).*/\1/g')
+  CLANG_VERSION := $(shell $(CC) --version | head -1 | sed 's/.*clang version \([[:digit:]]\+.[[:digit:]]\+.[[:digit:]]\+\).*/\1/g')
   ifeq ($(call version-lt3,$(CLANG_VERSION),13.0.0),1)
     bison_flags := $(subst -Wno-unused-but-set-variable,,$(bison_flags))
     flex_flags := $(subst -Wno-unused-but-set-variable,,$(flex_flags))

@@ -451,6 +451,16 @@ static void ab8500_fg_fill_cap_sample(struct ab8500_fg *di, int sample)
 	avg->avg = sample;
 }
 
+static u8 ab8500_fg_cc_config(struct ab8500_fg *di)
+{
+	u8 config = CC_PWR_UP_ENA;
+
+	if (!is_ab8505(di->parent))
+		config |= CC_DEEP_SLEEP_ENA;
+
+	return config;
+}
+
 /**
  * ab8500_fg_coulomb_counter() - enable coulomb counter
  * @di:		pointer to the ab8500_fg structure
@@ -481,7 +491,7 @@ static int ab8500_fg_coulomb_counter(struct ab8500_fg *di, bool enable)
 		/* Start the CC */
 		ret = abx500_set_register_interruptible(di->dev, AB8500_RTC,
 			AB8500_RTC_CC_CONF_REG,
-			(CC_DEEP_SLEEP_ENA | CC_PWR_UP_ENA));
+			ab8500_fg_cc_config(di));
 		if (ret)
 			goto cc_err;
 
@@ -555,7 +565,7 @@ int ab8500_fg_inst_curr_start(struct ab8500_fg *di)
 		/* Start the CC */
 		ret = abx500_set_register_interruptible(di->dev, AB8500_RTC,
 			AB8500_RTC_CC_CONF_REG,
-			(CC_DEEP_SLEEP_ENA | CC_PWR_UP_ENA));
+			ab8500_fg_cc_config(di));
 		if (ret)
 			goto fail;
 	} else {
@@ -934,9 +944,15 @@ static int ab8500_load_comp_fg_bat_voltage(struct ab8500_fg *di, bool always)
 	int i = 0;
 	int vbat_uv = 0;
 	int rcomp;
+	int ret;
 
 	/* Average the instant current to get a stable current measurement */
-	ab8500_fg_inst_curr_start(di);
+	ret = ab8500_fg_inst_curr_start(di);
+	if (ret) {
+		dev_err(di->dev, "failed to start instantaneous current measurement\n");
+		di->vbat_uv = ab8500_fg_bat_voltage(di);
+		return di->vbat_uv;
+	}
 
 	do {
 		vbat_uv += ab8500_fg_bat_voltage(di);
@@ -945,14 +961,13 @@ static int ab8500_load_comp_fg_bat_voltage(struct ab8500_fg *di, bool always)
 	} while (!ab8500_fg_inst_curr_done(di) &&
 		 i <= WAIT_FOR_INST_CURRENT_MAX);
 
-	if (i > WAIT_FOR_INST_CURRENT_MAX) {
+	ret = ab8500_fg_inst_curr_finalize(di, &di->inst_curr_ua);
+	if (ret) {
 		dev_err(di->dev,
 			"TIMEOUT: return uncompensated measurement of VBAT\n");
 		di->vbat_uv = vbat_uv / i;
 		return di->vbat_uv;
 	}
-
-	ab8500_fg_inst_curr_finalize(di, &di->inst_curr_ua);
 
 	/*
 	 * If there is too high current dissipation, the compensation cannot be

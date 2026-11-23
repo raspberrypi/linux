@@ -101,10 +101,13 @@ struct ksmbd_file {
 	__le32				coption;
 	__le32				cdoption;
 	__u64				create_time;
+	__u64				change_time;
+	__u64				allocation_size;
 	__u64				itime;
 
 	bool				is_nt_open;
 	bool				attrib_only;
+	bool				allocation_size_set;
 
 	char				client_guid[16];
 	char				create_guid[16];

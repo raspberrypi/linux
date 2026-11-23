@@ -497,6 +497,7 @@ struct evsel *evsel__clone(struct evsel *dest, struct evsel *orig)
 	evsel->core.system_wide = orig->core.system_wide;
 	evsel->core.requires_cpu = orig->core.requires_cpu;
 	evsel->core.is_pmu_core = orig->core.is_pmu_core;
+	evsel->core.is_pmu_uncore = orig->core.is_pmu_uncore;
 
 	if (orig->name) {
 		evsel->name = strdup(orig->name);
@@ -2663,6 +2664,12 @@ static int evsel__open_cpu(struct evsel *evsel, struct perf_cpu_map *cpus,
 	int pid = -1, err, old_errno;
 	enum rlimit_action set_rlimit = NO_CHANGE;
 	struct perf_cpu cpu;
+
+	/*
+	 * A failed attempt being retried after evsel__fallback() would
+	 * otherwise keep group members out of their group in get_group_fd().
+	 */
+	evsel->supported = true;
 
 	if (evsel__is_retire_lat(evsel)) {
 		err = evsel__tpebs_open(evsel);

@@ -147,20 +147,29 @@ static ssize_t target_type_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(target_type);
 
+/*
+ * Interleave ways selects how many targets a decoder uses, but the target
+ * array is only nr_targets long. Bound array access by both.
+ */
+static int cxlsd_nr_used_targets(struct cxl_switch_decoder *cxlsd)
+{
+	return min(cxlsd->cxld.interleave_ways, cxlsd->nr_targets);
+}
+
 static ssize_t emit_target_list(struct cxl_switch_decoder *cxlsd, char *buf)
 {
-	struct cxl_decoder *cxld = &cxlsd->cxld;
+	int nr_used = cxlsd_nr_used_targets(cxlsd);
 	ssize_t offset = 0;
 	int i, rc = 0;
 
-	for (i = 0; i < cxld->interleave_ways; i++) {
+	for (i = 0; i < nr_used; i++) {
 		struct cxl_dport *dport = cxlsd->target[i];
 		struct cxl_dport *next = NULL;
 
 		if (!dport)
 			break;
 
-		if (i + 1 < cxld->interleave_ways)
+		if (i + 1 < nr_used)
 			next = cxlsd->target[i + 1];
 		rc = sysfs_emit_at(buf, offset, "%d%s", dport->port_id,
 				   next ? "," : "");
@@ -783,7 +792,7 @@ static int cxl_setup_comp_regs(struct device *host, struct cxl_register_map *map
 	return cxl_setup_regs(map);
 }
 
-static int cxl_port_setup_regs(struct cxl_port *port,
+int cxl_port_setup_regs(struct cxl_port *port,
 			resource_size_t component_reg_phys)
 {
 	if (dev_is_platform(port->uport_dev))
@@ -791,6 +800,7 @@ static int cxl_port_setup_regs(struct cxl_port *port,
 	return cxl_setup_comp_regs(&port->dev, &port->reg_map,
 				   component_reg_phys);
 }
+EXPORT_SYMBOL_NS_GPL(cxl_port_setup_regs, "CXL");
 
 static int cxl_dport_setup_regs(struct device *host, struct cxl_dport *dport,
 				resource_size_t component_reg_phys)
@@ -825,6 +835,11 @@ static int cxl_einj_inject(void *data, u64 type)
 DEFINE_DEBUGFS_ATTRIBUTE(cxl_einj_inject_fops, NULL, cxl_einj_inject,
 			 "0x%llx\n");
 
+static void remove_debugfs(void *dentry)
+{
+	debugfs_remove_recursive(dentry);
+}
+
 static void cxl_debugfs_create_dport_dir(struct cxl_dport *dport)
 {
 	struct cxl_port *parent = parent_port_of(dport->port);
@@ -842,6 +857,9 @@ static void cxl_debugfs_create_dport_dir(struct cxl_dport *dport)
 		return;
 
 	dir = cxl_debugfs_create_dir(dev_name(dport->dport_dev));
+
+	if (devm_add_action_or_reset(dport_to_host(dport), remove_debugfs, dir))
+		return;
 
 	debugfs_create_file("einj_inject", 0200, dir, dport,
 			    &cxl_einj_inject_fops);
@@ -1154,6 +1172,48 @@ static void cxl_dport_unlink(void *data)
 	sysfs_remove_link(&port->dev.kobj, link_name);
 }
 
+static void free_dport(void *dport)
+{
+	kfree(dport);
+}
+
+/*
+ * Upon return either a group is established with one action (free_dport()), or
+ * no group established and @dport is freed.
+ */
+static void *cxl_dport_open_dr_group_or_free(struct cxl_dport *dport)
+{
+	int rc;
+	struct device *host = dport_to_host(dport);
+	void *group = devres_open_group(host, dport, GFP_KERNEL);
+
+	if (!group) {
+		kfree(dport);
+		return NULL;
+	}
+
+	rc = devm_add_action_or_reset(host, free_dport, dport);
+	if (rc) {
+		devres_release_group(host, group);
+		return NULL;
+	}
+
+	return group;
+}
+
+static void cxl_dport_close_dr_group(struct cxl_dport *dport, void *group)
+{
+	devres_close_group(dport_to_host(dport), group);
+}
+
+static void del_dport(struct cxl_dport *dport)
+{
+	devres_release_group(dport_to_host(dport), dport);
+}
+
+/* The dport group id is the dport */
+DEFINE_FREE(cxl_dport_release_dr_group, void *, if (_T) del_dport(_T))
+
 static struct cxl_dport *
 __devm_cxl_add_dport(struct cxl_port *port, struct device *dport_dev,
 		     int port_id, resource_size_t component_reg_phys,
@@ -1179,13 +1239,19 @@ __devm_cxl_add_dport(struct cxl_port *port, struct device *dport_dev,
 	    CXL_TARGET_STRLEN)
 		return ERR_PTR(-EINVAL);
 
-	dport = devm_kzalloc(host, sizeof(*dport), GFP_KERNEL);
+	dport = kzalloc(sizeof(*dport), GFP_KERNEL);
 	if (!dport)
 		return ERR_PTR(-ENOMEM);
 
+	/* Just enough init to manage the devres group */
 	dport->dport_dev = dport_dev;
 	dport->port_id = port_id;
 	dport->port = port;
+
+	void *dport_dr_group __free(cxl_dport_release_dr_group) =
+		cxl_dport_open_dr_group_or_free(dport);
+	if (!dport_dr_group)
+		return ERR_PTR(-ENOMEM);
 
 	if (rcrb == CXL_RESOURCE_NONE) {
 		rc = cxl_dport_setup_regs(&port->dev, dport,
@@ -1238,6 +1304,12 @@ __devm_cxl_add_dport(struct cxl_port *port, struct device *dport_dev,
 		dport->link_latency = cxl_pci_get_latency(to_pci_dev(dport_dev));
 
 	cxl_debugfs_create_dport_dir(dport);
+
+	if (!dport->rch)
+		devm_cxl_dport_ras_setup(dport);
+
+	/* keep the group, and mark the end of devm actions */
+	cxl_dport_close_dr_group(dport, no_free_ptr(dport_dr_group));
 
 	return dport;
 }
@@ -1465,15 +1537,6 @@ static void delete_switch_port(struct cxl_port *port)
 	devm_release_action(port->dev.parent, unregister_port, port);
 }
 
-static void del_dport(struct cxl_dport *dport)
-{
-	struct cxl_port *port = dport->port;
-
-	devm_release_action(&port->dev, cxl_dport_unlink, dport);
-	devm_release_action(&port->dev, cxl_dport_remove, dport);
-	devm_kfree(&port->dev, dport);
-}
-
 static void del_dports(struct cxl_port *port)
 {
 	struct cxl_dport *dport;
@@ -1602,7 +1665,7 @@ static int update_decoder_targets(struct device *dev, void *data)
 	struct cxl_dport *dport = data;
 	struct cxl_switch_decoder *cxlsd;
 	struct cxl_decoder *cxld;
-	int i;
+	int i, nr_used;
 
 	if (!is_switch_decoder(dev))
 		return 0;
@@ -1610,8 +1673,9 @@ static int update_decoder_targets(struct device *dev, void *data)
 	cxlsd = to_cxl_switch_decoder(dev);
 	cxld = &cxlsd->cxld;
 	guard(rwsem_write)(&cxl_rwsem.region);
+	nr_used = cxlsd_nr_used_targets(cxlsd);
 
-	for (i = 0; i < cxld->interleave_ways; i++) {
+	for (i = 0; i < nr_used; i++) {
 		if (cxld->target_map[i] == dport->port_id) {
 			cxlsd->target[i] = dport;
 			dev_dbg(dev, "dport%d found in target list, index %d\n",
@@ -1623,56 +1687,44 @@ static int update_decoder_targets(struct device *dev, void *data)
 	return 0;
 }
 
-DEFINE_FREE(del_cxl_dport, struct cxl_dport *, if (!IS_ERR_OR_NULL(_T)) del_dport(_T))
-static struct cxl_dport *cxl_port_add_dport(struct cxl_port *port,
-					    struct device *dport_dev)
+void cxl_port_update_decoder_targets(struct cxl_port *port,
+				     struct cxl_dport *dport)
 {
-	struct cxl_dport *dport;
-	int rc;
+	device_for_each_child(&port->dev, dport, update_decoder_targets);
+}
+EXPORT_SYMBOL_NS_GPL(cxl_port_update_decoder_targets, "CXL");
+
+static bool dport_exists(struct cxl_port *port, struct device *dport_dev)
+{
+	struct cxl_dport *dport = cxl_find_dport_by_dev(port, dport_dev);
+
+	if (dport) {
+		dev_dbg(&port->dev, "dport%d:%s already exists\n",
+			dport->port_id, dev_name(dport_dev));
+		return true;
+	}
+
+	return false;
+}
+
+static struct cxl_dport *probe_dport(struct cxl_port *port,
+				     struct device *dport_dev)
+{
+	struct cxl_driver *drv;
 
 	device_lock_assert(&port->dev);
 	if (!port->dev.driver)
 		return ERR_PTR(-ENXIO);
 
-	dport = cxl_find_dport_by_dev(port, dport_dev);
-	if (dport) {
-		dev_dbg(&port->dev, "dport%d:%s already exists\n",
-			dport->port_id, dev_name(dport_dev));
+	if (dport_exists(port, dport_dev))
 		return ERR_PTR(-EBUSY);
-	}
 
-	struct cxl_dport *new_dport __free(del_cxl_dport) =
-		devm_cxl_add_dport_by_dev(port, dport_dev);
-	if (IS_ERR(new_dport))
-		return new_dport;
+	drv = container_of(port->dev.driver, struct cxl_driver, drv);
+	if (!drv->add_dport)
+		return ERR_PTR(-ENXIO);
 
-	cxl_switch_parse_cdat(new_dport);
-
-	if (port->nr_dports == 1) {
-		/*
-		 * Some host bridges are known to not have component regsisters
-		 * available until a root port has trained CXL. Perform that
-		 * setup now.
-		 */
-		rc = cxl_port_setup_regs(port, port->component_reg_phys);
-		if (rc)
-			return ERR_PTR(rc);
-
-		rc = devm_cxl_switch_port_decoders_setup(port);
-		if (rc)
-			return ERR_PTR(rc);
-		dev_dbg(&port->dev, "first dport%d:%s added with decoders\n",
-			new_dport->port_id, dev_name(dport_dev));
-		return no_free_ptr(new_dport);
-	}
-
-	/* New dport added, update the decoder targets */
-	device_for_each_child(&port->dev, new_dport, update_decoder_targets);
-
-	dev_dbg(&port->dev, "dport%d:%s added\n", new_dport->port_id,
-		dev_name(dport_dev));
-
-	return no_free_ptr(new_dport);
+	/* see cxl_port_add_dport() */
+	return drv->add_dport(port, dport_dev);
 }
 
 static struct cxl_dport *devm_cxl_create_port(struct device *ep_dev,
@@ -1719,7 +1771,7 @@ static struct cxl_dport *devm_cxl_create_port(struct device *ep_dev,
 	}
 
 	guard(device)(&port->dev);
-	return cxl_port_add_dport(port, dport_dev);
+	return probe_dport(port, dport_dev);
 }
 
 static int add_port_attach_ep(struct cxl_memdev *cxlmd,
@@ -1751,7 +1803,7 @@ static int add_port_attach_ep(struct cxl_memdev *cxlmd,
 	scoped_guard(device, &parent_port->dev) {
 		parent_dport = cxl_find_dport_by_dev(parent_port, dparent);
 		if (!parent_dport) {
-			parent_dport = cxl_port_add_dport(parent_port, dparent);
+			parent_dport = probe_dport(parent_port, dparent);
 			if (IS_ERR(parent_dport))
 				return PTR_ERR(parent_dport);
 		}
@@ -1787,7 +1839,7 @@ static struct cxl_dport *find_or_add_dport(struct cxl_port *port,
 	device_lock_assert(&port->dev);
 	dport = cxl_find_dport_by_dev(port, dport_dev);
 	if (!dport) {
-		dport = cxl_port_add_dport(port, dport_dev);
+		dport = probe_dport(port, dport_dev);
 		if (IS_ERR(dport))
 			return dport;
 
@@ -1914,7 +1966,7 @@ static int decoder_populate_targets(struct cxl_switch_decoder *cxlsd,
 				    struct cxl_port *port)
 {
 	struct cxl_decoder *cxld = &cxlsd->cxld;
-	int i;
+	int i, nr_used;
 
 	device_lock_assert(&port->dev);
 
@@ -1922,7 +1974,8 @@ static int decoder_populate_targets(struct cxl_switch_decoder *cxlsd,
 		return 0;
 
 	guard(rwsem_write)(&cxl_rwsem.region);
-	for (i = 0; i < cxlsd->cxld.interleave_ways; i++) {
+	nr_used = cxlsd_nr_used_targets(cxlsd);
+	for (i = 0; i < nr_used; i++) {
 		struct cxl_dport *dport = find_dport(port, cxld->target_map[i]);
 
 		if (!dport) {
@@ -1983,7 +2036,7 @@ static int cxl_switch_decoder_init(struct cxl_port *port,
 				   struct cxl_switch_decoder *cxlsd,
 				   int nr_targets)
 {
-	if (nr_targets > CXL_DECODER_MAX_INTERLEAVE)
+	if (nr_targets < 1 || nr_targets > CXL_DECODER_MAX_INTERLEAVE)
 		return -EINVAL;
 
 	cxlsd->nr_targets = nr_targets;
@@ -2391,8 +2444,10 @@ int cxl_endpoint_get_perf_coordinates(struct cxl_port *port,
 	 * Skip calculation for RCD. Expectation is HMAT already covers RCD case
 	 * since RCH does not support hotplug.
 	 */
-	if (cxlmd->cxlds->rcd)
+	if (cxlmd->cxlds->rcd) {
+		memset(coord, 0, sizeof(*coord) * ACCESS_COORDINATE_MAX);
 		return 0;
+	}
 
 	/*
 	 * Exit the loop when the parent port of the current iter port is cxl

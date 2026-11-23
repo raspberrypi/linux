@@ -508,20 +508,31 @@ extern void scsi_sanitize_inquiry_string(unsigned char *s, int len);
  */
 #define SCMD_FAILURE_STAT_ANY	0xff
 /*
- * The following can be set to the scsi_failure sense, asc and ascq fields to
- * match on any sense, ASC, or ASCQ value.
+ * The following can be set to the scsi_failure sense key, asc and ascq fields
+ * to match any sense key, ASC, and ASCQ value.
  */
-#define SCMD_FAILURE_SENSE_ANY	0xff
-#define SCMD_FAILURE_ASC_ANY	0xff
-#define SCMD_FAILURE_ASCQ_ANY	0xff
+#define SCMD_FAILURE_SENSE_KEY_ANY	0xff
+#define SCMD_FAILURE_SENSE_CODE_ANY	0xffff
+#define SCMD_FAILURE_ASC_ANY		0xff
+#define SCMD_FAILURE_ASCQ_ANY		0xff
 /* Always retry a matching failure. */
 #define SCMD_FAILURE_NO_LIMIT	-1
 
 struct scsi_failure {
 	int result;
-	u8 sense;
-	u8 asc;
-	u8 ascq;
+	u8 sense_key;
+	union {
+		struct {
+#if defined(__BIG_ENDIAN)
+			u8 asc;
+			u8 ascq;
+#elif defined(__LITTLE_ENDIAN)
+			u8 ascq;
+			u8 asc;
+#endif
+		};
+		u16 sense_code;
+	};
 	/*
 	 * Number of times scsi_execute_cmd will retry the failure. It does
 	 * not count for the total_allowed.
@@ -530,6 +541,16 @@ struct scsi_failure {
 	/* Number of times the failure has been retried. */
 	s8 retries;
 };
+
+static inline u8 scsi_failure_asc(const struct scsi_failure *failure)
+{
+	return scsi_sense_code_asc(failure->sense_code);
+}
+
+static inline u8 scsi_failure_ascq(const struct scsi_failure *failure)
+{
+	return scsi_sense_code_ascq(failure->sense_code);
+}
 
 struct scsi_failures {
 	/*
@@ -558,6 +579,10 @@ int scsi_execute_cmd(struct scsi_device *sdev, const unsigned char *cmd,
 		     const struct scsi_exec_args *args);
 void scsi_failures_reset_retries(struct scsi_failures *failures);
 
+struct scsi_cmnd *scsi_get_internal_cmd(struct scsi_device *sdev,
+					enum dma_data_direction data_direction,
+					blk_mq_req_flags_t flags);
+void scsi_put_internal_cmd(struct scsi_cmnd *scmd);
 extern void sdev_disable_disk_events(struct scsi_device *sdev);
 extern void sdev_enable_disk_events(struct scsi_device *sdev);
 extern int scsi_vpd_lun_id(struct scsi_device *, char *, size_t);
@@ -588,6 +613,22 @@ static inline unsigned int sdev_id(struct scsi_device *sdev)
 
 #define scmd_id(scmd) sdev_id((scmd)->device)
 #define scmd_channel(scmd) sdev_channel((scmd)->device)
+
+/**
+ * scsi_device_is_pseudo_dev() - Whether a device is a pseudo SCSI device.
+ * @sdev: SCSI device to examine
+ *
+ * A pseudo SCSI device can be used to allocate SCSI commands but does not show
+ * up in sysfs. Additionally, the logical unit information in *@sdev is made up.
+ *
+ * This function tests the LUN number instead of comparing @sdev with
+ * @sdev->host->pseudo_sdev because this function may be called before
+ * @sdev->host->pseudo_sdev has been initialized.
+ */
+static inline bool scsi_device_is_pseudo_dev(struct scsi_device *sdev)
+{
+	return sdev->lun == U64_MAX;
+}
 
 /*
  * checks for positions of the SCSI state machine

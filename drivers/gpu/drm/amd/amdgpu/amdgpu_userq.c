@@ -27,6 +27,7 @@
 #include <linux/pm_runtime.h>
 
 #include "amdgpu.h"
+#include "amdgpu_reset.h"
 #include "amdgpu_vm.h"
 #include "amdgpu_userq.h"
 #include "amdgpu_userq_fence.h"
@@ -148,6 +149,8 @@ amdgpu_userq_unmap_helper(struct amdgpu_userq_mgr *uq_mgr,
 		adev->userq_funcs[queue->queue_type];
 	int r = 0;
 
+	/* The reset changes the queue state and the MES is unusable meanwhile */
+	guard(rwsem_read)(&adev->reset_domain->sem);
 	if ((queue->state == AMDGPU_USERQ_STATE_MAPPED) ||
 		(queue->state == AMDGPU_USERQ_STATE_PREEMPTED)) {
 		r = userq_funcs->unmap(uq_mgr, queue);
@@ -168,6 +171,8 @@ amdgpu_userq_map_helper(struct amdgpu_userq_mgr *uq_mgr,
 		adev->userq_funcs[queue->queue_type];
 	int r = 0;
 
+	/* The reset changes the queue state and the MES is unusable meanwhile */
+	guard(rwsem_read)(&adev->reset_domain->sem);
 	if (queue->state == AMDGPU_USERQ_STATE_UNMAPPED) {
 		r = userq_funcs->map(uq_mgr, queue);
 		if (r) {

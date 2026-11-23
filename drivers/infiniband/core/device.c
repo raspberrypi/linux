@@ -537,12 +537,13 @@ static int ib_device_uevent(const struct device *device,
 	return 0;
 }
 
-static const void *net_namespace(const struct device *d)
+static const struct ns_common *net_namespace(const struct device *d)
 {
 	const struct ib_core_device *coredev =
 			container_of(d, struct ib_core_device, dev);
+	struct net *net = read_pnet(&coredev->rdma_net);
 
-	return read_pnet(&coredev->rdma_net);
+	return net ? to_ns_common(net) : NULL;
 }
 
 static struct class ib_class = {
@@ -2903,7 +2904,7 @@ int ib_add_sub_device(struct ib_device *parent,
 	sub->parent = parent;
 
 	mutex_lock(&parent->subdev_lock);
-	list_add_tail(&parent->subdev_list_head, &sub->subdev_list);
+	list_add_tail(&sub->subdev_list, &parent->subdev_list_head);
 	mutex_unlock(&parent->subdev_lock);
 
 	return ret;

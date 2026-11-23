@@ -373,7 +373,7 @@ static void *ublk_alloc_report_buffer(struct ublk_device *ublk,
 }
 
 static int ublk_report_zones(struct gendisk *disk, sector_t sector,
-		      unsigned int nr_zones, report_zones_cb cb, void *data)
+		      unsigned int nr_zones, struct blk_report_zones_args *args)
 {
 	struct ublk_device *ub = disk->private_data;
 	unsigned int zone_size_sectors = disk->queue->limits.chunk_sectors;
@@ -436,7 +436,7 @@ free_req:
 			if (!zone->len)
 				break;
 
-			ret = cb(zone, i, data);
+			ret = disk_report_zone(disk, zone, done_zones, args);
 			if (ret)
 				goto out;
 
@@ -2029,6 +2029,7 @@ static void ublk_uring_cmd_cancel_fn(struct io_uring_cmd *cmd,
 {
 	struct ublk_uring_cmd_pdu *pdu = ublk_get_uring_cmd_pdu(cmd);
 	struct ublk_queue *ubq = pdu->ubq;
+	struct io_uring_cmd *cur;
 	struct task_struct *task;
 	struct ublk_io *io;
 
@@ -2045,7 +2046,9 @@ static void ublk_uring_cmd_cancel_fn(struct io_uring_cmd *cmd,
 
 	ublk_start_cancel(ubq->dev);
 
-	WARN_ON_ONCE(io->cmd != cmd);
+	/* NULL if a cancel from the control path took it meanwhile */
+	cur = READ_ONCE(io->cmd);
+	WARN_ON_ONCE(cur && cur != cmd);
 	ublk_cancel_cmd(ubq, pdu->tag, issue_flags);
 }
 

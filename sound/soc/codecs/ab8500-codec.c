@@ -20,10 +20,8 @@
 #include <linux/slab.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
-#include <linux/delay.h>
 #include <linux/pm.h>
 #include <linux/platform_device.h>
-#include <linux/mutex.h>
 #include <linux/mfd/abx500/ab8500.h>
 #include <linux/mfd/abx500.h>
 #include <linux/mfd/abx500/ab8500-sysctrl.h>
@@ -53,77 +51,9 @@
 /* Macrocell register definitions */
 #define AB8500_GPIO_DIR4_REG			0x13 /* Bank AB8500_MISC */
 
-/* Nr of FIR/IIR-coeff banks in ANC-block */
-#define AB8500_NR_OF_ANC_COEFF_BANKS		2
-
-/* Minimum duration to keep ANC IIR Init bit high or
-low before proceeding with the configuration sequence */
-#define AB8500_ANC_SM_DELAY			2000
-
-#define AB8500_FILTER_CONTROL(xname, xcount, xmin, xmax) \
-{	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = (xname), \
-	.info = filter_control_info, \
-	.get = filter_control_get, .put = filter_control_put, \
-	.private_value = (unsigned long)&(struct filter_control) \
-		{.count = xcount, .min = xmin, .max = xmax} }
-
-struct filter_control {
-	long min, max;
-	unsigned int count;
-	long value[128];
-};
-
-/* Sidetone states */
-static const char * const enum_sid_state[] = {
-	"Unconfigured",
-	"Apply FIR",
-	"FIR is configured",
-};
-enum sid_state {
-	SID_UNCONFIGURED = 0,
-	SID_APPLY_FIR = 1,
-	SID_FIR_CONFIGURED = 2,
-};
-
-static const char * const enum_anc_state[] = {
-	"Unconfigured",
-	"Apply FIR and IIR",
-	"FIR and IIR are configured",
-	"Apply FIR",
-	"FIR is configured",
-	"Apply IIR",
-	"IIR is configured"
-};
-enum anc_state {
-	ANC_UNCONFIGURED = 0,
-	ANC_APPLY_FIR_IIR = 1,
-	ANC_FIR_IIR_CONFIGURED = 2,
-	ANC_APPLY_FIR = 3,
-	ANC_FIR_CONFIGURED = 4,
-	ANC_APPLY_IIR = 5,
-	ANC_IIR_CONFIGURED = 6
-};
-
-/* Analog microphones */
-enum amic_idx {
-	AMIC_IDX_1A,
-	AMIC_IDX_1B,
-	AMIC_IDX_2
-};
-
 /* Private data for AB8500 device-driver */
 struct ab8500_codec_drvdata {
 	struct regmap *regmap;
-	struct mutex ctrl_lock;
-
-	/* Sidetone */
-	long *sid_fir_values;
-	enum sid_state sid_status;
-
-	/* ANC */
-	long *anc_fir_values;
-	long *anc_iir_values;
-	enum anc_state anc_status;
 };
 
 static inline const char *amic_micbias_str(enum amic_micbias micbias)
@@ -369,7 +299,6 @@ static const struct snd_soc_dapm_widget ab8500_dapm_widgets[] = {
 	SND_SOC_DAPM_REGULATOR_SUPPLY("V-AUD", 0, 0),
 	SND_SOC_DAPM_REGULATOR_SUPPLY("V-AMIC1", 0, 0),
 	SND_SOC_DAPM_REGULATOR_SUPPLY("V-AMIC2", 0, 0),
-	SND_SOC_DAPM_REGULATOR_SUPPLY("V-DMIC", 0, 0),
 
 	/* Power */
 	SND_SOC_DAPM_SUPPLY("Audio Power",
@@ -394,7 +323,6 @@ static const struct snd_soc_dapm_widget ab8500_dapm_widgets[] = {
 	SND_SOC_DAPM_AIF_OUT("AD_OUT1", NULL, 0, SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_AIF_OUT("AD_OUT2", NULL, 0, SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_AIF_OUT("AD_OUT3", NULL, 0, SND_SOC_NOPM, 0, 0),
-	SND_SOC_DAPM_AIF_OUT("AD_OUT4", NULL, 0, SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_AIF_OUT("AD_OUT57", NULL, 0, SND_SOC_NOPM, 0, 0),
 	SND_SOC_DAPM_AIF_OUT("AD_OUT68", NULL, 0, SND_SOC_NOPM, 0, 0),
 
@@ -654,40 +582,7 @@ static const struct snd_soc_dapm_widget ab8500_dapm_widgets[] = {
 	SND_SOC_DAPM_SUPPLY("AD5768 Enable", AB8500_ADPATHENA,
 			    AB8500_ADPATHENA_ENAD5768, 0, NULL, 0),
 
-	/* Digital Microphone path */
-
-	SND_SOC_DAPM_INPUT("DMic 1"),
-	SND_SOC_DAPM_INPUT("DMic 2"),
-	SND_SOC_DAPM_INPUT("DMic 3"),
-	SND_SOC_DAPM_INPUT("DMic 4"),
-	SND_SOC_DAPM_INPUT("DMic 5"),
-	SND_SOC_DAPM_INPUT("DMic 6"),
-
-	SND_SOC_DAPM_MIXER("DMIC1",
-			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC1, 0,
-			NULL, 0),
-	SND_SOC_DAPM_MIXER("DMIC2",
-			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC2, 0,
-			NULL, 0),
-	SND_SOC_DAPM_MIXER("DMIC3",
-			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC3, 0,
-			NULL, 0),
-	SND_SOC_DAPM_MIXER("DMIC4",
-			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC4, 0,
-			NULL, 0),
-	SND_SOC_DAPM_MIXER("DMIC5",
-			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC5, 0,
-			NULL, 0),
-	SND_SOC_DAPM_MIXER("DMIC6",
-			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC6, 0,
-			NULL, 0),
-	SND_SOC_DAPM_MIXER("AD4 Channel Volume",
-			SND_SOC_NOPM, 0, 0,
-			NULL, 0),
 	/* Acoustical Noise Cancellation path */
-
-	SND_SOC_DAPM_INPUT("ANC Configure Input"),
-	SND_SOC_DAPM_OUTPUT("ANC Configure Output"),
 
 	SND_SOC_DAPM_MUX("ANC Source",
 			SND_SOC_NOPM, 0, 0,
@@ -721,6 +616,40 @@ static const struct snd_soc_dapm_widget ab8500_dapm_widgets[] = {
 			NULL, 0),
 };
 
+static const struct snd_soc_dapm_widget ab8500_dmic_dapm_widgets[] = {
+	SND_SOC_DAPM_REGULATOR_SUPPLY("V-DMIC", 0, 0),
+	SND_SOC_DAPM_AIF_OUT("AD_OUT4", NULL, 0, SND_SOC_NOPM, 0, 0),
+
+	SND_SOC_DAPM_INPUT("DMic 1"),
+	SND_SOC_DAPM_INPUT("DMic 2"),
+	SND_SOC_DAPM_INPUT("DMic 3"),
+	SND_SOC_DAPM_INPUT("DMic 4"),
+	SND_SOC_DAPM_INPUT("DMic 5"),
+	SND_SOC_DAPM_INPUT("DMic 6"),
+
+	SND_SOC_DAPM_MIXER("DMIC1",
+			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC1, 0,
+			NULL, 0),
+	SND_SOC_DAPM_MIXER("DMIC2",
+			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC2, 0,
+			NULL, 0),
+	SND_SOC_DAPM_MIXER("DMIC3",
+			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC3, 0,
+			NULL, 0),
+	SND_SOC_DAPM_MIXER("DMIC4",
+			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC4, 0,
+			NULL, 0),
+	SND_SOC_DAPM_MIXER("DMIC5",
+			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC5, 0,
+			NULL, 0),
+	SND_SOC_DAPM_MIXER("DMIC6",
+			AB8500_DIGMICCONF, AB8500_DIGMICCONF_ENDMIC6, 0,
+			NULL, 0),
+	SND_SOC_DAPM_MIXER("AD4 Channel Volume",
+			SND_SOC_NOPM, 0, 0,
+			NULL, 0),
+};
+
 /*
  * DAPM-routes
  */
@@ -730,10 +659,6 @@ static const struct snd_soc_dapm_route ab8500_dapm_routes[] = {
 	{"Main Supply", NULL, "audioclk"},
 	{"Main Supply", NULL, "Audio Power"},
 	{"Main Supply", NULL, "Audio Analog Power"},
-
-	/* ANC Configure */
-	{"ANC Configure Input", NULL, "Main Supply"},
-	{"ANC Configure Output", NULL, "ANC Configure Input"},
 
 	/* Powerup charge pump if DA1/2 is in use */
 
@@ -930,35 +855,6 @@ static const struct snd_soc_dapm_route ab8500_dapm_routes[] = {
 	{"AD_OUT68", NULL, "Main Supply"},
 	{"AD_OUT68", NULL, "AD6 Channel Volume"},
 
-	/* Digital Microphone path */
-
-	{"DMic 1", NULL, "V-DMIC"},
-	{"DMic 2", NULL, "V-DMIC"},
-	{"DMic 3", NULL, "V-DMIC"},
-	{"DMic 4", NULL, "V-DMIC"},
-	{"DMic 5", NULL, "V-DMIC"},
-	{"DMic 6", NULL, "V-DMIC"},
-
-	{"DMIC1", NULL, "DMic 1"},
-	{"DMIC2", NULL, "DMic 2"},
-	{"DMIC3", NULL, "DMic 3"},
-	{"DMIC4", NULL, "DMic 4"},
-	{"DMIC5", NULL, "DMic 5"},
-	{"DMIC6", NULL, "DMic 6"},
-
-	{"AD1 Source Select", "DMic 1", "DMIC1"},
-	{"AD2 Source Select", "DMic 2", "DMIC2"},
-	{"AD3 Source Select", "DMic 3", "DMIC3"},
-	{"AD5 Source Select", "DMic 5", "DMIC5"},
-	{"AD6 Source Select", "DMic 6", "DMIC6"},
-
-	{"AD4 Channel Volume", NULL, "DMIC4"},
-	{"AD4 Channel Volume", NULL, "AD34 Enable"},
-
-	{"ab8500_0c", NULL, "AD_OUT4"},
-	{"AD_OUT4", NULL, "Main Supply"},
-	{"AD_OUT4", NULL, "AD4 Channel Volume"},
-
 	/* LineIn Bypass path */
 
 	{"LINL to HSL Volume", NULL, "LINL Enable"},
@@ -988,7 +884,6 @@ static const struct snd_soc_dapm_route ab8500_dapm_routes[] = {
 	{"Sidetone Left Source", "Headset Left", "DA_IN1"},
 	{"Sidetone Right Source", "LineIn Right", "AD2 Channel Volume"},
 	{"Sidetone Right Source", "Mic 1", "AD3 Channel Volume"},
-	{"Sidetone Right Source", "DMic 4", "AD4 Channel Volume"},
 	{"Sidetone Right Source", "Headset Right", "DA_IN2"},
 
 	{"STFIR1 Control", NULL, "Sidetone Left Source"},
@@ -999,6 +894,37 @@ static const struct snd_soc_dapm_route ab8500_dapm_routes[] = {
 
 	{"DA1 Enable", NULL, "STFIR1 Volume"},
 	{"DA2 Enable", NULL, "STFIR2 Volume"},
+};
+
+static const struct snd_soc_dapm_route ab8500_dmic_dapm_routes[] = {
+	{"DMic 1", NULL, "V-DMIC"},
+	{"DMic 2", NULL, "V-DMIC"},
+	{"DMic 3", NULL, "V-DMIC"},
+	{"DMic 4", NULL, "V-DMIC"},
+	{"DMic 5", NULL, "V-DMIC"},
+	{"DMic 6", NULL, "V-DMIC"},
+
+	{"DMIC1", NULL, "DMic 1"},
+	{"DMIC2", NULL, "DMic 2"},
+	{"DMIC3", NULL, "DMic 3"},
+	{"DMIC4", NULL, "DMic 4"},
+	{"DMIC5", NULL, "DMic 5"},
+	{"DMIC6", NULL, "DMic 6"},
+
+	{"AD1 Source Select", "DMic 1", "DMIC1"},
+	{"AD2 Source Select", "DMic 2", "DMIC2"},
+	{"AD3 Source Select", "DMic 3", "DMIC3"},
+	{"AD5 Source Select", "DMic 5", "DMIC5"},
+	{"AD6 Source Select", "DMic 6", "DMIC6"},
+
+	{"AD4 Channel Volume", NULL, "DMIC4"},
+	{"AD4 Channel Volume", NULL, "AD34 Enable"},
+
+	{"ab8500_0c", NULL, "AD_OUT4"},
+	{"AD_OUT4", NULL, "Main Supply"},
+	{"AD_OUT4", NULL, "AD4 Channel Volume"},
+
+	{"Sidetone Right Source", "DMic 4", "AD4 Channel Volume"},
 };
 
 static const struct snd_soc_dapm_route ab8500_dapm_routes_mic1a_vamicx[] = {
@@ -1015,292 +941,6 @@ static const struct snd_soc_dapm_route ab8500_dapm_routes_mic2_vamicx[] = {
 	{"MIC2 V-AMICx Enable", NULL, "V-AMIC1"},
 	{"MIC2 V-AMICx Enable", NULL, "V-AMIC2"},
 };
-
-/* ANC FIR-coefficients configuration sequence */
-static void anc_fir(struct snd_soc_component *component,
-		unsigned int bnk, unsigned int par, unsigned int val)
-{
-	if (par == 0 && bnk == 0)
-		snd_soc_component_update_bits(component, AB8500_ANCCONF1,
-			BIT(AB8500_ANCCONF1_ANCFIRUPDATE),
-			BIT(AB8500_ANCCONF1_ANCFIRUPDATE));
-
-	snd_soc_component_write(component, AB8500_ANCCONF5, val >> 8 & 0xff);
-	snd_soc_component_write(component, AB8500_ANCCONF6, val &  0xff);
-
-	if (par == AB8500_ANC_FIR_COEFFS - 1 && bnk == 1)
-		snd_soc_component_update_bits(component, AB8500_ANCCONF1,
-			BIT(AB8500_ANCCONF1_ANCFIRUPDATE), 0);
-}
-
-/* ANC IIR-coefficients configuration sequence */
-static void anc_iir(struct snd_soc_component *component, unsigned int bnk,
-		unsigned int par, unsigned int val)
-{
-	if (par == 0) {
-		if (bnk == 0) {
-			snd_soc_component_update_bits(component, AB8500_ANCCONF1,
-					BIT(AB8500_ANCCONF1_ANCIIRINIT),
-					BIT(AB8500_ANCCONF1_ANCIIRINIT));
-			usleep_range(AB8500_ANC_SM_DELAY, AB8500_ANC_SM_DELAY*2);
-			snd_soc_component_update_bits(component, AB8500_ANCCONF1,
-					BIT(AB8500_ANCCONF1_ANCIIRINIT), 0);
-			usleep_range(AB8500_ANC_SM_DELAY, AB8500_ANC_SM_DELAY*2);
-		} else {
-			snd_soc_component_update_bits(component, AB8500_ANCCONF1,
-					BIT(AB8500_ANCCONF1_ANCIIRUPDATE),
-					BIT(AB8500_ANCCONF1_ANCIIRUPDATE));
-		}
-	} else if (par > 3) {
-		snd_soc_component_write(component, AB8500_ANCCONF7, 0);
-		snd_soc_component_write(component, AB8500_ANCCONF8, val >> 16 & 0xff);
-	}
-
-	snd_soc_component_write(component, AB8500_ANCCONF7, val >> 8 & 0xff);
-	snd_soc_component_write(component, AB8500_ANCCONF8, val & 0xff);
-
-	if (par == AB8500_ANC_IIR_COEFFS - 1 && bnk == 1)
-		snd_soc_component_update_bits(component, AB8500_ANCCONF1,
-			BIT(AB8500_ANCCONF1_ANCIIRUPDATE), 0);
-}
-
-/* ANC IIR-/FIR-coefficients configuration sequence */
-static void anc_configure(struct snd_soc_component *component,
-			bool apply_fir, bool apply_iir)
-{
-	struct ab8500_codec_drvdata *drvdata = dev_get_drvdata(component->dev);
-	unsigned int bnk, par, val;
-
-	dev_dbg(component->dev, "%s: Enter.\n", __func__);
-
-	if (apply_fir)
-		snd_soc_component_update_bits(component, AB8500_ANCCONF1,
-			BIT(AB8500_ANCCONF1_ENANC), 0);
-
-	snd_soc_component_update_bits(component, AB8500_ANCCONF1,
-		BIT(AB8500_ANCCONF1_ENANC), BIT(AB8500_ANCCONF1_ENANC));
-
-	if (apply_fir)
-		for (bnk = 0; bnk < AB8500_NR_OF_ANC_COEFF_BANKS; bnk++)
-			for (par = 0; par < AB8500_ANC_FIR_COEFFS; par++) {
-				val = snd_soc_component_read(component,
-						drvdata->anc_fir_values[par]);
-				anc_fir(component, bnk, par, val);
-			}
-
-	if (apply_iir)
-		for (bnk = 0; bnk < AB8500_NR_OF_ANC_COEFF_BANKS; bnk++)
-			for (par = 0; par < AB8500_ANC_IIR_COEFFS; par++) {
-				val = snd_soc_component_read(component,
-						drvdata->anc_iir_values[par]);
-				anc_iir(component, bnk, par, val);
-			}
-
-	dev_dbg(component->dev, "%s: Exit.\n", __func__);
-}
-
-/*
- * Control-events
- */
-
-static int sid_status_control_get(struct snd_kcontrol *kcontrol,
-		struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
-	struct ab8500_codec_drvdata *drvdata = dev_get_drvdata(component->dev);
-
-	mutex_lock(&drvdata->ctrl_lock);
-	ucontrol->value.enumerated.item[0] = drvdata->sid_status;
-	mutex_unlock(&drvdata->ctrl_lock);
-
-	return 0;
-}
-
-/* Write sidetone FIR-coefficients configuration sequence */
-static int sid_status_control_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
-	struct ab8500_codec_drvdata *drvdata = dev_get_drvdata(component->dev);
-	unsigned int param, sidconf, val;
-	int status = 1;
-
-	dev_dbg(component->dev, "%s: Enter\n", __func__);
-
-	if (ucontrol->value.enumerated.item[0] != SID_APPLY_FIR) {
-		dev_err(component->dev,
-			"%s: ERROR: This control supports '%s' only!\n",
-			__func__, enum_sid_state[SID_APPLY_FIR]);
-		return -EIO;
-	}
-
-	mutex_lock(&drvdata->ctrl_lock);
-
-	sidconf = snd_soc_component_read(component, AB8500_SIDFIRCONF);
-	if (((sidconf & BIT(AB8500_SIDFIRCONF_FIRSIDBUSY)) != 0)) {
-		if ((sidconf & BIT(AB8500_SIDFIRCONF_ENFIRSIDS)) == 0) {
-			dev_err(component->dev, "%s: Sidetone busy while off!\n",
-				__func__);
-			status = -EPERM;
-		} else {
-			status = -EBUSY;
-		}
-		goto out;
-	}
-
-	snd_soc_component_write(component, AB8500_SIDFIRADR, 0);
-
-	for (param = 0; param < AB8500_SID_FIR_COEFFS; param++) {
-		val = snd_soc_component_read(component, drvdata->sid_fir_values[param]);
-		snd_soc_component_write(component, AB8500_SIDFIRCOEF1, val >> 8 & 0xff);
-		snd_soc_component_write(component, AB8500_SIDFIRCOEF2, val & 0xff);
-	}
-
-	snd_soc_component_update_bits(component, AB8500_SIDFIRADR,
-		BIT(AB8500_SIDFIRADR_FIRSIDSET),
-		BIT(AB8500_SIDFIRADR_FIRSIDSET));
-	snd_soc_component_update_bits(component, AB8500_SIDFIRADR,
-		BIT(AB8500_SIDFIRADR_FIRSIDSET), 0);
-
-	drvdata->sid_status = SID_FIR_CONFIGURED;
-
-out:
-	mutex_unlock(&drvdata->ctrl_lock);
-
-	dev_dbg(component->dev, "%s: Exit\n", __func__);
-
-	return status;
-}
-
-static int anc_status_control_get(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
-	struct ab8500_codec_drvdata *drvdata = dev_get_drvdata(component->dev);
-
-	mutex_lock(&drvdata->ctrl_lock);
-	ucontrol->value.enumerated.item[0] = drvdata->anc_status;
-	mutex_unlock(&drvdata->ctrl_lock);
-
-	return 0;
-}
-
-static int anc_status_control_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
-	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
-	struct ab8500_codec_drvdata *drvdata = dev_get_drvdata(component->dev);
-	struct device *dev = component->dev;
-	bool apply_fir, apply_iir;
-	unsigned int req;
-	int status;
-
-	dev_dbg(dev, "%s: Enter.\n", __func__);
-
-	mutex_lock(&drvdata->ctrl_lock);
-
-	req = ucontrol->value.enumerated.item[0];
-	if (req >= ARRAY_SIZE(enum_anc_state)) {
-		status = -EINVAL;
-		goto cleanup;
-	}
-	if (req != ANC_APPLY_FIR_IIR && req != ANC_APPLY_FIR &&
-		req != ANC_APPLY_IIR) {
-		dev_err(dev, "%s: ERROR: Unsupported status to set '%s'!\n",
-			__func__, enum_anc_state[req]);
-		status = -EINVAL;
-		goto cleanup;
-	}
-	apply_fir = req == ANC_APPLY_FIR || req == ANC_APPLY_FIR_IIR;
-	apply_iir = req == ANC_APPLY_IIR || req == ANC_APPLY_FIR_IIR;
-
-	status = snd_soc_dapm_force_enable_pin(dapm, "ANC Configure Input");
-	if (status < 0) {
-		dev_err(dev,
-			"%s: ERROR: Failed to enable power (status = %d)!\n",
-			__func__, status);
-		goto cleanup;
-	}
-	snd_soc_dapm_sync(dapm);
-
-	anc_configure(component, apply_fir, apply_iir);
-
-	if (apply_fir) {
-		if (drvdata->anc_status == ANC_IIR_CONFIGURED)
-			drvdata->anc_status = ANC_FIR_IIR_CONFIGURED;
-		else if (drvdata->anc_status != ANC_FIR_IIR_CONFIGURED)
-			drvdata->anc_status =  ANC_FIR_CONFIGURED;
-	}
-	if (apply_iir) {
-		if (drvdata->anc_status == ANC_FIR_CONFIGURED)
-			drvdata->anc_status = ANC_FIR_IIR_CONFIGURED;
-		else if (drvdata->anc_status != ANC_FIR_IIR_CONFIGURED)
-			drvdata->anc_status =  ANC_IIR_CONFIGURED;
-	}
-
-	status = snd_soc_dapm_disable_pin(dapm, "ANC Configure Input");
-	snd_soc_dapm_sync(dapm);
-
-cleanup:
-	mutex_unlock(&drvdata->ctrl_lock);
-
-	if (status < 0)
-		dev_err(dev, "%s: Unable to configure ANC! (status = %d)\n",
-			__func__, status);
-
-	dev_dbg(dev, "%s: Exit.\n", __func__);
-
-	return (status < 0) ? status : 1;
-}
-
-static int filter_control_info(struct snd_kcontrol *kcontrol,
-			struct snd_ctl_elem_info *uinfo)
-{
-	struct filter_control *fc =
-			(struct filter_control *)kcontrol->private_value;
-
-	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
-	uinfo->count = fc->count;
-	uinfo->value.integer.min = fc->min;
-	uinfo->value.integer.max = fc->max;
-
-	return 0;
-}
-
-static int filter_control_get(struct snd_kcontrol *kcontrol,
-			struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
-	struct ab8500_codec_drvdata *drvdata = snd_soc_component_get_drvdata(component);
-	struct filter_control *fc =
-			(struct filter_control *)kcontrol->private_value;
-	unsigned int i;
-
-	mutex_lock(&drvdata->ctrl_lock);
-	for (i = 0; i < fc->count; i++)
-		ucontrol->value.integer.value[i] = fc->value[i];
-	mutex_unlock(&drvdata->ctrl_lock);
-
-	return 0;
-}
-
-static int filter_control_put(struct snd_kcontrol *kcontrol,
-		struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
-	struct ab8500_codec_drvdata *drvdata = snd_soc_component_get_drvdata(component);
-	struct filter_control *fc =
-			(struct filter_control *)kcontrol->private_value;
-	unsigned int i;
-
-	mutex_lock(&drvdata->ctrl_lock);
-	for (i = 0; i < fc->count; i++)
-		fc->value[i] = ucontrol->value.integer.value[i];
-	mutex_unlock(&drvdata->ctrl_lock);
-
-	return 0;
-}
 
 /*
  * Controls - Non-DAPM ASoC
@@ -1585,11 +1225,7 @@ static SOC_ENUM_SINGLE_DECL(soc_enum_bfifomast,
 			AB8500_FIFOCONF3, AB8500_FIFOCONF3_BFIFOMAST_SHIFT,
 			enum_slavemaster);
 
-/* Sidetone */
-static SOC_ENUM_SINGLE_EXT_DECL(soc_enum_sidstate, enum_sid_state);
-
 /* ANC */
-static SOC_ENUM_SINGLE_EXT_DECL(soc_enum_ancstate, enum_anc_state);
 
 static struct snd_kcontrol_new ab8500_ctrls[] = {
 	/* Charge pump */
@@ -1865,8 +1501,6 @@ static struct snd_kcontrol_new ab8500_ctrls[] = {
 		AB8500_FIFOCONF6_BFIFOSAMPLE_MAX, 0),
 
 	/* ANC */
-	SOC_ENUM_EXT("ANC Status", soc_enum_ancstate,
-		anc_status_control_get, anc_status_control_put),
 	SOC_SINGLE_XR_SX("ANC Warp Delay Shift",
 		AB8500_ANCCONF2, 1, AB8500_ANCCONF2_SHIFT,
 		AB8500_ANCCONF2_MIN, AB8500_ANCCONF2_MAX, 0),
@@ -1881,25 +1515,8 @@ static struct snd_kcontrol_new ab8500_ctrls[] = {
 		AB8500_ANC_WARP_DELAY_MIN, AB8500_ANC_WARP_DELAY_MAX, 0),
 
 	/* Sidetone */
-	SOC_ENUM_EXT("Sidetone Status", soc_enum_sidstate,
-		sid_status_control_get, sid_status_control_put),
 	SOC_SINGLE_STROBE("Sidetone Reset",
 		AB8500_SIDFIRADR, AB8500_SIDFIRADR_FIRSIDSET, 0),
-};
-
-static struct snd_kcontrol_new ab8500_filter_controls[] = {
-	AB8500_FILTER_CONTROL("ANC FIR Coefficients", AB8500_ANC_FIR_COEFFS,
-		AB8500_ANC_FIR_COEFF_MIN, AB8500_ANC_FIR_COEFF_MAX),
-	AB8500_FILTER_CONTROL("ANC IIR Coefficients", AB8500_ANC_IIR_COEFFS,
-		AB8500_ANC_IIR_COEFF_MIN, AB8500_ANC_IIR_COEFF_MAX),
-	AB8500_FILTER_CONTROL("Sidetone FIR Coefficients",
-			AB8500_SID_FIR_COEFFS, AB8500_SID_FIR_COEFF_MIN,
-			AB8500_SID_FIR_COEFF_MAX)
-};
-enum ab8500_filter {
-	AB8500_FILTER_ANC_FIR = 0,
-	AB8500_FILTER_ANC_IIR = 1,
-	AB8500_FILTER_SID_FIR = 2,
 };
 
 /*
@@ -1926,7 +1543,7 @@ static int ab8500_audio_init_audioblock(struct snd_soc_component *component)
 static int ab8500_audio_setup_mics(struct snd_soc_component *component,
 			struct amic_settings *amics)
 {
-	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
+	struct snd_soc_dapm_context *dapm = snd_soc_component_to_dapm(component);
 	u8 value8;
 	unsigned int value;
 	int status;
@@ -2424,17 +2041,31 @@ static void ab8500_codec_of_probe(struct device *dev, struct device_node *np,
 
 static int ab8500_codec_probe(struct snd_soc_component *component)
 {
-	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
 	struct device *dev = component->dev;
 	struct device_node *np = dev->of_node;
-	struct ab8500_codec_drvdata *drvdata = dev_get_drvdata(dev);
+	struct ab8500 *ab8500 = dev_get_drvdata(dev->parent);
 	struct ab8500_codec_platform_data codec_pdata;
-	struct filter_control *fc;
+	struct snd_soc_dapm_context *dapm;
 	int status;
 
 	dev_dbg(dev, "%s: Enter.\n", __func__);
 
 	ab8500_codec_of_probe(dev, np, &codec_pdata);
+
+	if (is_ab8500(ab8500)) {
+		dapm = snd_soc_component_to_dapm(component);
+		status = snd_soc_dapm_new_controls(dapm,
+						   ab8500_dmic_dapm_widgets,
+						   ARRAY_SIZE(ab8500_dmic_dapm_widgets));
+		if (status)
+			return status;
+
+		status = snd_soc_dapm_add_routes(dapm,
+						 ab8500_dmic_dapm_routes,
+						 ARRAY_SIZE(ab8500_dmic_dapm_routes));
+		if (status)
+			return status;
+	}
 
 	status = ab8500_audio_init_audioblock(component);
 	if (status < 0) {
@@ -2460,29 +2091,6 @@ static int ab8500_codec_probe(struct snd_soc_component *component)
 		      BIT(AB8500_ANACONF5_HSAUTOEN));
 	snd_soc_component_write(component, AB8500_SHORTCIRCONF,
 		      BIT(AB8500_SHORTCIRCONF_HSZCDDIS));
-
-	/* Add filter controls */
-	status = snd_soc_add_component_controls(component, ab8500_filter_controls,
-				ARRAY_SIZE(ab8500_filter_controls));
-	if (status < 0) {
-		dev_err(dev,
-			"%s: failed to add ab8500 filter controls (%d).\n",
-			__func__, status);
-		return status;
-	}
-	fc = (struct filter_control *)
-		ab8500_filter_controls[AB8500_FILTER_ANC_FIR].private_value;
-	drvdata->anc_fir_values = (long *)fc->value;
-	fc = (struct filter_control *)
-		ab8500_filter_controls[AB8500_FILTER_ANC_IIR].private_value;
-	drvdata->anc_iir_values = (long *)fc->value;
-	fc = (struct filter_control *)
-		ab8500_filter_controls[AB8500_FILTER_SID_FIR].private_value;
-	drvdata->sid_fir_values = (long *)fc->value;
-
-	snd_soc_dapm_disable_pin(dapm, "ANC Configure Input");
-
-	mutex_init(&drvdata->ctrl_lock);
 
 	return status;
 }
@@ -2512,8 +2120,6 @@ static int ab8500_codec_driver_probe(struct platform_device *pdev)
 			GFP_KERNEL);
 	if (!drvdata)
 		return -ENOMEM;
-	drvdata->sid_status = SID_UNCONFIGURED;
-	drvdata->anc_status = ANC_UNCONFIGURED;
 	dev_set_drvdata(&pdev->dev, drvdata);
 
 	drvdata->regmap = devm_regmap_init(&pdev->dev, NULL, &pdev->dev,

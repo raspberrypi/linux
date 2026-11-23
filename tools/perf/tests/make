@@ -88,12 +88,11 @@ make_no_backtrace   := NO_BACKTRACE=1
 make_no_libcapstone := NO_CAPSTONE=1
 make_no_libnuma     := NO_LIBNUMA=1
 make_no_libbionic   := NO_LIBBIONIC=1
-make_no_auxtrace    := NO_AUXTRACE=1
 make_no_libbpf	    := NO_LIBBPF=1
 make_libbpf_dynamic := LIBBPF_DYNAMIC=1
 make_no_libbpf_DEBUG := NO_LIBBPF=1 DEBUG=1
 make_no_libllvm     := NO_LIBLLVM=1
-make_with_babeltrace:= LIBBABELTRACE=1
+make_no_babeltrace2 := NO_BABELTRACE2=1
 make_with_coresight := CORESIGHT=1
 make_no_sdt	    := NO_SDT=1
 make_no_libpfm4     := NO_LIBPFM4=1
@@ -121,7 +120,7 @@ make_static         := LDFLAGS=-static NO_PERF_READ_VDSO32=1 NO_PERF_READ_VDSOX3
 make_minimal        := NO_LIBPYTHON=1 NO_GTK2=1
 make_minimal        += NO_DEMANGLE=1 NO_LIBELF=1 NO_BACKTRACE=1
 make_minimal        += NO_LIBNUMA=1 NO_LIBBIONIC=1 NO_LIBDW=1
-make_minimal        += NO_LIBDW_DWARF_UNWIND=1 NO_AUXTRACE=1 NO_LIBBPF=1
+make_minimal        += NO_LIBDW_DWARF_UNWIND=1 NO_LIBBPF=1
 make_minimal        += NO_SDT=1 NO_JVMTI=1 NO_LIBZSTD=1
 make_minimal        += NO_CAPSTONE=1
 
@@ -153,20 +152,16 @@ run += make_no_demangle
 run += make_no_libelf
 run += make_no_libdw
 run += make_libunwind
-run += make_no_libdw_dwarf_unwind
 run += make_no_backtrace
 run += make_no_libcapstone
 run += make_no_libnuma
 run += make_no_libbionic
-run += make_no_auxtrace
 run += make_no_libbpf
 run += make_no_libbpf_DEBUG
 run += make_no_libllvm
 run += make_no_sdt
-run += make_no_syscall_tbl
-run += make_with_babeltrace
+run += make_no_babeltrace2
 run += make_with_coresight
-run += make_with_clangllvm
 run += make_no_libpfm4
 run += make_refcnt_check
 run += make_help

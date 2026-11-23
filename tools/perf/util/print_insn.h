@@ -4,6 +4,7 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <sys/types.h>
 
 struct perf_sample;
 struct thread;

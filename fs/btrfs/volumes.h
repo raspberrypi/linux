@@ -22,6 +22,7 @@
 #include <uapi/linux/btrfs_tree.h>
 #include "messages.h"
 #include "extent-io-tree.h"
+#include "fs.h"
 
 struct block_device;
 struct bdev_handle;
@@ -100,6 +101,9 @@ enum btrfs_raid_types {
 #define BTRFS_DEV_STATE_REPLACE_TGT	(3)
 #define BTRFS_DEV_STATE_FLUSH_SENT	(4)
 #define BTRFS_DEV_STATE_NO_READA	(5)
+
+/* Set when the device item is found in chunk tree, used to catch unexpected registered device. */
+#define BTRFS_DEV_STATE_ITEM_FOUND	(7)
 
 /* Special value encoding failure to write primary super block. */
 #define BTRFS_SUPER_PRIMARY_WRITE_ERROR		(INT_MAX / 2)
@@ -201,6 +205,12 @@ struct btrfs_device {
 
 	/* Bandwidth limit for scrub, in bytes */
 	u64 scrub_speed_max;
+
+	/*
+	 * A temporary number of allocated space during per-profile
+	 * available space calculation.
+	 */
+	u64 per_profile_allocated;
 };
 
 /*
@@ -468,6 +478,15 @@ struct btrfs_fs_devices {
 	/* Checksum mode - offload it or do it synchronously. */
 	enum btrfs_offload_csum_mode offload_csum_mode;
 #endif
+
+	/*
+	 * Each value indicates the available space for that profile.
+	 * U64_MAX means the estimation is unavailable.
+	 *
+	 * Protected by per_profile_lock;
+	 */
+	u64 per_profile_avail[BTRFS_NR_RAID_TYPES];
+	spinlock_t per_profile_lock;
 };
 
 #define BTRFS_MAX_DEVS(info) ((BTRFS_MAX_ITEM_SIZE(info)	\
@@ -889,6 +908,25 @@ enum btrfs_raid_types __attribute_const__ btrfs_bg_flags_to_raid_index(u64 flags
 int btrfs_bg_type_to_factor(u64 flags);
 const char *btrfs_bg_type_to_raid_name(u64 flags);
 int btrfs_verify_dev_extents(struct btrfs_fs_info *fs_info);
+bool btrfs_verify_dev_items(const struct btrfs_fs_info *fs_info);
+void btrfs_update_per_profile_avail(struct btrfs_fs_info *fs_info);
+
+static inline bool btrfs_get_per_profile_avail(struct btrfs_fs_info *fs_info,
+					       u64 profile, u64 *avail_ret)
+{
+	enum btrfs_raid_types index = btrfs_bg_flags_to_raid_index(profile);
+	struct btrfs_fs_devices *fs_devices = fs_info->fs_devices;
+	bool uptodate = false;
+
+	spin_lock(&fs_devices->per_profile_lock);
+	if (fs_devices->per_profile_avail[index] != U64_MAX) {
+		uptodate = true;
+		*avail_ret = fs_devices->per_profile_avail[index];
+	}
+	spin_unlock(&fs_info->fs_devices->per_profile_lock);
+	return uptodate;
+}
+
 bool btrfs_repair_one_zone(struct btrfs_fs_info *fs_info, u64 logical);
 
 bool btrfs_pinned_by_swapfile(struct btrfs_fs_info *fs_info, void *ptr);

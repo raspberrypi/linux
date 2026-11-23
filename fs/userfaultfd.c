@@ -71,11 +71,6 @@ struct userfaultfd_wait_queue {
 	bool waken;
 };
 
-struct userfaultfd_wake_range {
-	unsigned long start;
-	unsigned long len;
-};
-
 /* internal indication that UFFD_API ioctl was successfully executed */
 #define UFFD_FEATURE_INITIALIZED		(1u << 31)
 
@@ -1191,8 +1186,8 @@ static void __wake_userfault(struct userfaultfd_ctx *ctx,
 	spin_unlock_irq(&ctx->fault_pending_wqh.lock);
 }
 
-static __always_inline void wake_userfault(struct userfaultfd_ctx *ctx,
-					   struct userfaultfd_wake_range *range)
+void wake_userfault(struct userfaultfd_ctx *ctx,
+		    struct userfaultfd_wake_range *range)
 {
 	unsigned seq;
 	bool need_wakeup;
@@ -1523,6 +1518,9 @@ static int userfaultfd_unregister(struct userfaultfd_ctx *ctx,
 		if (vma->vm_start > start)
 			start = vma->vm_start;
 		vma_end = min(end, vma->vm_end);
+
+		/* Prevent new userfaults from being queued after the wakeup. */
+		vma_start_write(vma);
 
 		if (userfaultfd_missing(vma)) {
 			/*

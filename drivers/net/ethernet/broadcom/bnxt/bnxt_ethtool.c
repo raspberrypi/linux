@@ -4445,6 +4445,7 @@ static int bnxt_set_tunable(struct net_device *dev,
 			if (netif_running(dev))
 				return -EBUSY;
 			bp->rx_copybreak = rx_copybreak;
+			bnxt_set_ring_params(bp);
 		}
 		return 0;
 	case ETHTOOL_PFC_PREVENTION_TOUT:

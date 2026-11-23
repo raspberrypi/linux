@@ -20,7 +20,7 @@
 #include <unistd.h>
 
 #include "pidfd.h"
-#include "../kselftest.h"
+#include "kselftest.h"
 
 static int safe_int(const char *numstr, int *converted)
 {
@@ -168,7 +168,7 @@ int main(int argc, char **argv)
 	}
 	if (info.ppid != getppid()) {
 		ksft_print_msg("ppid %d does not match ppid from ioctl %d\n",
-			       pid, info.pid);
+			       getppid(), info.ppid);
 		goto on_error;
 	}
 	if (info.ruid != getuid()) {

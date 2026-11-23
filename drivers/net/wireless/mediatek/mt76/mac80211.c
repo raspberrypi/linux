@@ -848,8 +848,8 @@ void mt76_reset_device(struct mt76_dev *dev)
 			continue;
 
 		wcid->sta = 0;
-		mt76_wcid_cleanup(dev, wcid);
 		rcu_assign_pointer(dev->wcid[i], NULL);
+		mt76_wcid_cleanup(dev, wcid);
 	}
 	rcu_read_unlock();
 
@@ -1470,6 +1470,7 @@ mt76_check_sta(struct mt76_dev *dev, struct sk_buff *skb)
 	struct ieee80211_hw *hw;
 	struct mt76_wcid *wcid = status->wcid;
 	u8 tidno = status->qos_ctl & IEEE80211_QOS_CTL_TID_MASK;
+	int signal;
 	bool ps;
 
 	hw = mt76_phy_hw(dev, status->phy_idx);
@@ -1487,8 +1488,9 @@ mt76_check_sta(struct mt76_dev *dev, struct sk_buff *skb)
 
 	sta = container_of((void *)wcid, struct ieee80211_sta, drv_priv);
 
-	if (status->signal <= 0)
-		ewma_signal_add(&wcid->rssi, -status->signal);
+	signal = mt76_rx_signal(status->chains, status->chain_signal);
+	if (signal <= 0 && signal > -128)
+		ewma_signal_add(&wcid->rssi, -signal);
 
 	wcid->inactive_count = 0;
 
@@ -1746,9 +1748,8 @@ void mt76_wcid_cleanup(struct mt76_dev *dev, struct mt76_wcid *wcid)
 
 	mt76_tx_status_lock(dev, &list);
 	mt76_tx_status_skb_get(dev, wcid, -1, &list);
-	mt76_tx_status_unlock(dev, &list);
-
 	idr_destroy(&wcid->pktid);
+	mt76_tx_status_unlock(dev, &list);
 
 	spin_lock_bh(&phy->tx_lock);
 
@@ -2099,7 +2100,7 @@ void mt76_vif_cleanup(struct mt76_dev *dev, struct ieee80211_vif *vif)
 
 	rcu_assign_pointer(mvif->link[0], NULL);
 	mt76_abort_scan(dev);
-	if (mvif->roc_phy)
+	if (mvif->roc_phy && mvif->roc_phy->roc_vif == vif)
 		mt76_abort_roc(mvif->roc_phy);
 }
 EXPORT_SYMBOL_GPL(mt76_vif_cleanup);
@@ -2155,3 +2156,102 @@ u16 mt76_select_links(struct ieee80211_vif *vif, int max_active_links)
 	return sel_links;
 }
 EXPORT_SYMBOL_GPL(mt76_select_links);
+
+struct mt76_offchannel_cb_data {
+	struct mt76_phy *phy;
+	bool offchannel;
+};
+
+static void
+mt76_offchannel_send_nullfunc(struct mt76_offchannel_cb_data *data,
+			      struct ieee80211_vif *vif, int link_id)
+{
+	struct mt76_phy *phy = data->phy;
+	struct ieee80211_tx_info *info;
+	struct ieee80211_sta *sta = NULL;
+	struct ieee80211_hdr *hdr;
+	struct mt76_wcid *wcid;
+	struct sk_buff *skb;
+
+	skb = ieee80211_nullfunc_get(phy->hw, vif, link_id, true);
+	if (!skb)
+		return;
+
+	hdr = (struct ieee80211_hdr *)skb->data;
+	if (data->offchannel)
+		hdr->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
+
+	skb->priority = 7;
+	skb_set_queue_mapping(skb, IEEE80211_AC_VO);
+
+	if (!ieee80211_tx_prepare_skb(phy->hw, vif, skb,
+				      phy->main_chandef.chan->band,
+				      &sta))
+		return;
+
+	if (sta)
+		wcid = (struct mt76_wcid *)sta->drv_priv;
+	else
+		wcid = ((struct mt76_vif_link *)vif->drv_priv)->wcid;
+
+	if (link_id >= 0) {
+		info = IEEE80211_SKB_CB(skb);
+		info->control.flags &= ~IEEE80211_TX_CTRL_MLO_LINK;
+		info->control.flags |=
+			u32_encode_bits(link_id, IEEE80211_TX_CTRL_MLO_LINK);
+	}
+
+	mt76_tx(phy, sta, wcid, skb);
+}
+
+static void
+mt76_offchannel_notify_iter(void *_data, u8 *mac, struct ieee80211_vif *vif)
+{
+	struct mt76_offchannel_cb_data *data = _data;
+	struct mt76_vif_link *mlink;
+	struct mt76_vif_data *mvif;
+	int link_id;
+
+	if (vif->type != NL80211_IFTYPE_STATION || !vif->cfg.assoc)
+		return;
+
+	mlink = (struct mt76_vif_link *)vif->drv_priv;
+	mvif = mlink->mvif;
+
+	if (!ieee80211_vif_is_mld(vif)) {
+		if (mt76_vif_link_phy(mlink) == data->phy)
+			mt76_offchannel_send_nullfunc(data, vif, -1);
+		return;
+	}
+
+	for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS; link_id++) {
+		if (link_id == mvif->deflink_id)
+			mlink = (struct mt76_vif_link *)vif->drv_priv;
+		else
+			mlink = rcu_dereference(mvif->link[link_id]);
+		if (!mlink)
+			continue;
+		if (mt76_vif_link_phy(mlink) != data->phy)
+			continue;
+
+		mt76_offchannel_send_nullfunc(data, vif, link_id);
+	}
+}
+
+void mt76_offchannel_notify(struct mt76_phy *phy, bool offchannel)
+{
+	struct mt76_offchannel_cb_data data = {
+		.phy = phy,
+		.offchannel = offchannel,
+	};
+
+	if (!phy->num_sta)
+		return;
+
+	local_bh_disable();
+	ieee80211_iterate_active_interfaces_atomic(phy->hw,
+		IEEE80211_IFACE_ITER_NORMAL,
+		mt76_offchannel_notify_iter, &data);
+	local_bh_enable();
+}
+EXPORT_SYMBOL_GPL(mt76_offchannel_notify);
