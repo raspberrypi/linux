@@ -1628,7 +1628,7 @@ static int mira016_init_state(struct v4l2_subdev *sd,
 		.which = V4L2_SUBDEV_FORMAT_TRY,
 		.pad = 0,
 		.format = {
-			.code = MEDIA_BUS_FMT_Y8_1X8,
+			.code = MEDIA_BUS_FMT_Y12_1X12,
 			.width = MIRA016_PIXEL_ARRAY_WIDTH,
 			.height = MIRA016_PIXEL_ARRAY_HEIGHT
 		},
@@ -2252,7 +2252,7 @@ static int mira016_probe(struct i2c_client *client)
 	 */
 	mira016_pll_calc(mira016);
 	mira016_timings_calc(mira016);
-	mira016->timings.row_length = 1062;
+	mira016->timings.row_length = 1504;
 
 	ret = mira016_power_on(dev);
 	if (ret)
