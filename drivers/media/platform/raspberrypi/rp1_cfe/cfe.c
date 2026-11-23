@@ -2084,16 +2084,6 @@ static int cfe_link_node_pads(struct cfe_device *cfe)
 					    &node->video_dev.entity, 0, 0);
 		if (ret)
 			return ret;
-
-		if (node_supports_image(node)) {
-			/* CSI2 channel # -> FE Input */
-			ret = media_create_pad_link(&cfe->csi2.sd.entity,
-						    node_desc[i].link_pad,
-						    &cfe->fe.sd.entity,
-						    FE_STREAM_PAD, 0);
-			if (ret)
-				return ret;
-		}
 	}
 
 	for (; i < NUM_NODES; i++) {
@@ -2120,7 +2110,10 @@ static int cfe_link_node_pads(struct cfe_device *cfe)
 			return ret;
 	}
 
-	return 0;
+	/* CSI2 channel 0 -> FE Input */
+	ret = media_create_pad_link(&cfe->csi2.sd.entity, node_desc[0].link_pad,
+				    &cfe->fe.sd.entity, FE_STREAM_PAD, 0);
+	return ret;
 }
 
 static int cfe_probe_complete(struct cfe_device *cfe)
