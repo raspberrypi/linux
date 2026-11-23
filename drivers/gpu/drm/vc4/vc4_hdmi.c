@@ -1887,6 +1887,12 @@ static bool vc4_hdmi_audio_can_stream(struct vc4_hdmi *vc4_hdmi)
 {
 	struct drm_display_info *display = &vc4_hdmi->connector.display_info;
 
+	/*
+	 * display_info is rebuilt, briefly with is_hdmi clear, whenever the
+	 * EDID is re-read. That is done under mode_config.mutex but without
+	 * vc4_hdmi->mutex (see vc4_hdmi_connector_detect_ctx()).
+	 */
+	lockdep_assert_held(&vc4_hdmi->connector.dev->mode_config.mutex);
 	lockdep_assert_held(&vc4_hdmi->mutex);
 
 	/*
@@ -1907,6 +1913,7 @@ static int vc4_hdmi_audio_startup(struct drm_connector *connector)
 	int ret = 0;
 	int idx;
 
+	mutex_lock(&drm->mode_config.mutex);
 	mutex_lock(&vc4_hdmi->mutex);
 
 	if (!drm_dev_enter(drm, &idx)) {
@@ -1937,6 +1944,7 @@ out_dev_exit:
 	drm_dev_exit(idx);
 out:
 	mutex_unlock(&vc4_hdmi->mutex);
+	mutex_unlock(&drm->mode_config.mutex);
 
 	return ret;
 }
@@ -2055,6 +2063,7 @@ static int vc4_hdmi_audio_prepare(struct drm_connector *connector,
 	dev_dbg(&vc4_hdmi->pdev->dev, "%s: %u Hz, %d bit, %d channels\n", __func__,
 		sample_rate, params->sample_width, channels);
 
+	mutex_lock(&drm->mode_config.mutex);
 	mutex_lock(&vc4_hdmi->mutex);
 
 	if (!drm_dev_enter(drm, &idx)) {
@@ -2156,6 +2165,7 @@ out_dev_exit:
 	drm_dev_exit(idx);
 out:
 	mutex_unlock(&vc4_hdmi->mutex);
+	mutex_unlock(&drm->mode_config.mutex);
 
 	return ret;
 }
