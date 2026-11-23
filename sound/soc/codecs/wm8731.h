@@ -33,6 +33,14 @@ struct snd_pcm_hw_constraint_list;
 #define WM8731_ACTIVE   0x09
 #define WM8731_RESET	0x0f
 
+/* WM8731_PWR */
+#define WM8731_PWR_LINEINPD	0x0001
+#define WM8731_PWR_ADCPD	0x0004
+#define WM8731_PWR_DACPD	0x0008
+
+/* WM8731_ACTIVE */
+#define WM8731_ACTIVE_ACTIVE	0x0001
+
 #define WM8731_CACHEREGNUM 	10
 
 #define WM8731_SYSCLK_MCLK 0

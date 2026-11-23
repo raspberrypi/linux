@@ -168,20 +168,76 @@ SOC_DAPM_SINGLE("HiFi Playback Switch", WM8731_APANA, 4, 1, 0),
 static const struct snd_kcontrol_new wm8731_input_mux_controls =
 SOC_DAPM_ENUM("Input Select", wm8731_insel_enum);
 
+/*
+ * The datasheet's power-up sequence powers the converters, sets the other
+ * registers and activates the digital audio interface last.  With the
+ * codec as clock provider at 96 kHz (12 MHz crystal, USB mode), powering
+ * the ADC up while the interface was already active left it, about one
+ * time in four, delivering its DC offset and noise but no signal, until the
+ * interface was deactivated and activated again.  As DAPM widgets of their
+ * own, ACTIVE (a supply) was set ahead of the ADC on every capture start,
+ * and a capture starting next to a running playback powered the ADC up
+ * under an active interface.
+ *
+ * So the ADC, DAC and line input are powered together, by one supply, with
+ * the interface inactive; the interface is activated once a stream's
+ * widgets are all up and deactivated before the converters go down.  A
+ * second stream finds both converters powered and the interface left as it
+ * is.
+ */
+#define WM8731_PWR_CONVERTERS (WM8731_PWR_LINEINPD | WM8731_PWR_ADCPD | WM8731_PWR_DACPD)
+
+static int wm8731_converters_event(struct snd_soc_dapm_widget *w,
+				   struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
+
+	snd_soc_component_update_bits(component, WM8731_ACTIVE,
+				      WM8731_ACTIVE_ACTIVE, 0);
+
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMU:
+		snd_soc_component_update_bits(component, WM8731_PWR,
+					      WM8731_PWR_CONVERTERS, 0);
+		break;
+	case SND_SOC_DAPM_PRE_PMD:
+		snd_soc_component_update_bits(component, WM8731_PWR,
+					      WM8731_PWR_CONVERTERS,
+					      WM8731_PWR_CONVERTERS);
+		break;
+	}
+	return 0;
+}
+
+static int wm8731_interface_event(struct snd_soc_dapm_widget *w,
+				  struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
+	unsigned int pwr = snd_soc_component_read(component, WM8731_PWR);
+
+	if (event == SND_SOC_DAPM_POST_PMU && !(pwr & WM8731_PWR_CONVERTERS))
+		snd_soc_component_update_bits(component, WM8731_ACTIVE,
+					      WM8731_ACTIVE_ACTIVE,
+					      WM8731_ACTIVE_ACTIVE);
+	return 0;
+}
+
 static const struct snd_soc_dapm_widget wm8731_dapm_widgets[] = {
-SND_SOC_DAPM_SUPPLY("ACTIVE",WM8731_ACTIVE, 0, 0, NULL, 0),
+SND_SOC_DAPM_POST("Interface", wm8731_interface_event),
 SND_SOC_DAPM_SUPPLY("OSC", WM8731_PWR, 5, 1, NULL, 0),
+SND_SOC_DAPM_SUPPLY("Converters", SND_SOC_NOPM, 0, 0, wm8731_converters_event,
+		    SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
 SND_SOC_DAPM_MIXER("Output Mixer", WM8731_PWR, 4, 1,
 	&wm8731_output_mixer_controls[0],
 	ARRAY_SIZE(wm8731_output_mixer_controls)),
-SND_SOC_DAPM_DAC("DAC", "HiFi Playback", WM8731_PWR, 3, 1),
+SND_SOC_DAPM_DAC("DAC", "HiFi Playback", SND_SOC_NOPM, 0, 0),
 SND_SOC_DAPM_OUTPUT("LOUT"),
 SND_SOC_DAPM_OUTPUT("LHPOUT"),
 SND_SOC_DAPM_OUTPUT("ROUT"),
 SND_SOC_DAPM_OUTPUT("RHPOUT"),
-SND_SOC_DAPM_ADC("ADC", "HiFi Capture", WM8731_PWR, 2, 1),
+SND_SOC_DAPM_ADC("ADC", "HiFi Capture", SND_SOC_NOPM, 0, 0),
 SND_SOC_DAPM_MUX("Input Mux", SND_SOC_NOPM, 0, 0, &wm8731_input_mux_controls),
-SND_SOC_DAPM_PGA("Line Input", WM8731_PWR, 0, 1, NULL, 0),
+SND_SOC_DAPM_PGA("Line Input", SND_SOC_NOPM, 0, 0, NULL, 0),
 SND_SOC_DAPM_MICBIAS("Mic Bias", WM8731_PWR, 1, 1),
 SND_SOC_DAPM_INPUT("MICIN"),
 SND_SOC_DAPM_INPUT("RLINEIN"),
@@ -200,8 +256,9 @@ static int wm8731_check_osc(struct snd_soc_dapm_widget *source,
 static const struct snd_soc_dapm_route wm8731_intercon[] = {
 	{"DAC", NULL, "OSC", wm8731_check_osc},
 	{"ADC", NULL, "OSC", wm8731_check_osc},
-	{"DAC", NULL, "ACTIVE"},
-	{"ADC", NULL, "ACTIVE"},
+	{"DAC", NULL, "Converters"},
+	{"ADC", NULL, "Converters"},
+	{"Line Input", NULL, "Converters"},
 
 	/* output mixer */
 	{"Output Mixer", "Line Bypass Switch", "Line Input"},
@@ -321,10 +378,6 @@ static int wm8731_hw_params(struct snd_pcm_substream *substream,
 	u16 srate = (coeff_div[i].sr << 2) |
 		(coeff_div[i].bosr << 1) | coeff_div[i].usb;
 
-	wm8731->playback_fs = params_rate(params);
-
-	snd_soc_component_write(component, WM8731_SRATE, srate);
-
 	/* bit size */
 	switch (params_width(params)) {
 	case 16:
@@ -340,8 +393,25 @@ static int wm8731_hw_params(struct snd_pcm_substream *substream,
 		break;
 	}
 
-	wm8731_set_deemph(component);
+	/*
+	 * One sample rate and word length serve both directions.  While the
+	 * interface is active (the other direction running) its clocking is
+	 * not rewritten: the same settings are kept, others are refused.
+	 */
+	if (snd_soc_component_read(component, WM8731_ACTIVE) & WM8731_ACTIVE_ACTIVE) {
+		if (snd_soc_component_read(component, WM8731_SRATE) != srate ||
+		    snd_soc_component_read(component, WM8731_IFACE) != iface) {
+			dev_err(component->dev,
+				"interface active at other settings: %d Hz, %d bits refused\n",
+				params_rate(params), params_width(params));
+			return -EBUSY;
+		}
+		return 0;
+	}
 
+	wm8731->playback_fs = params_rate(params);
+	snd_soc_component_write(component, WM8731_SRATE, srate);
+	wm8731_set_deemph(component);
 	snd_soc_component_write(component, WM8731_IFACE, iface);
 	return 0;
 }
