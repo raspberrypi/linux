@@ -40,6 +40,10 @@ static struct platform_device *g_pdev;
 
 static DEFINE_MUTEX(transaction_lock);
 
+static unsigned int timeout = 3;
+module_param(timeout, uint, 0644);
+MODULE_PARM_DESC(timeout, "Firmware mailbox transaction timeout in seconds");
+
 static void response_callback(struct mbox_client *cl, void *msg)
 {
 	struct rpi_firmware *fw = container_of(cl, struct rpi_firmware, cl);
@@ -62,7 +66,7 @@ rpi_firmware_transaction(struct rpi_firmware *fw, u32 chan, u32 data)
 	reinit_completion(&fw->c);
 	ret = mbox_send_message(fw->chan, &message);
 	if (ret >= 0) {
-		if (wait_for_completion_timeout(&fw->c, 3*HZ)) {
+		if (wait_for_completion_timeout(&fw->c, timeout * HZ)) {
 			ret = 0;
 		} else {
 			ret = -ETIMEDOUT;
