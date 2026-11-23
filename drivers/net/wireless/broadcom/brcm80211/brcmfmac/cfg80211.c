@@ -7859,11 +7859,12 @@ static int brcmf_setup_wiphybands(struct brcmf_cfg80211_info *cfg)
 	struct brcmf_pub *drvr = cfg->pub;
 	struct brcmf_if *ifp = brcmf_get_ifp(drvr, 0);
 	struct wiphy *wiphy = cfg_to_wiphy(cfg);
-	u32 nmode;
+	u32 nmode = 0;
 	u32 vhtmode = 0;
 	u32 bw_cap[2] = { WLC_BW_20MHZ_BIT, WLC_BW_20MHZ_BIT };
 	u32 rxchain;
 	u32 nchain;
+	int nmode_err, vht_err;
 	int err;
 	s32 i;
 	struct ieee80211_supported_band *band;
@@ -7871,8 +7872,9 @@ static int brcmf_setup_wiphybands(struct brcmf_cfg80211_info *cfg)
 	u32 txbf_bfe_cap = 0;
 	u32 txbf_bfr_cap = 0;
 
-	(void)brcmf_fil_iovar_int_get(ifp, "vhtmode", &vhtmode);
-	err = brcmf_fil_iovar_int_get(ifp, "nmode", &nmode);
+	vht_err = brcmf_fil_iovar_int_get(ifp, "vhtmode", &vhtmode);
+	nmode_err = brcmf_fil_iovar_int_get(ifp, "nmode", &nmode);
+	err = nmode_err;
 	if (err) {
 		bphy_err(drvr, "nmode error (%d)\n", err);
 	} else {
@@ -7916,11 +7918,26 @@ static int brcmf_setup_wiphybands(struct brcmf_cfg80211_info *cfg)
 		if (band == NULL)
 			continue;
 
-		if (nmode)
-			brcmf_update_ht_cap(band, bw_cap, nchain);
-		if (vhtmode)
-			brcmf_update_vht_cap(band, bw_cap, nchain, txstreams,
-					     txbf_bfe_cap, txbf_bfr_cap);
+		/* The firmware's locale can disable 11n (and hence 11ac), so
+		 * nmode and vhtmode may change with the country. Clear the
+		 * capabilities when they are disabled, but leave them alone
+		 * if they couldn't be read.
+		 */
+		if (!nmode_err) {
+			if (nmode)
+				brcmf_update_ht_cap(band, bw_cap, nchain);
+			else
+				memset(&band->ht_cap, 0, sizeof(band->ht_cap));
+		}
+		if (!nmode_err && !vht_err) {
+			if (nmode && vhtmode)
+				brcmf_update_vht_cap(band, bw_cap, nchain,
+						     txstreams, txbf_bfe_cap,
+						     txbf_bfr_cap);
+			else
+				memset(&band->vht_cap, 0,
+				       sizeof(band->vht_cap));
+		}
 	}
 
 	return 0;
@@ -8869,6 +8886,7 @@ struct brcmf_cfg80211_info *brcmf_cfg80211_attach(struct brcmf_pub *drvr,
 	s32 err = 0;
 	s32 io_type;
 	u16 *cap = NULL;
+	bool bw40_2g;
 
 	if (!ndev) {
 		bphy_err(drvr, "ndev is invalid\n");
@@ -8948,16 +8966,20 @@ struct brcmf_cfg80211_info *brcmf_cfg80211_attach(struct brcmf_pub *drvr,
 		goto priv_out;
 	}
 
+	/* If cfg80211 didn't disable 40MHz HT CAP in wiphy_register(),
+	 * setup 40MHz in 2GHz band and enable OBSS scanning. Check this
+	 * before brcmf_setup_wiphybands(), which clears the HT capabilities
+	 * if the firmware has 11n disabled.
+	 */
+	bw40_2g = cap && (*cap & IEEE80211_HT_CAP_SUP_WIDTH_20_40);
+
 	err = brcmf_setup_wiphybands(cfg);
 	if (err) {
 		bphy_err(drvr, "Setting wiphy bands failed (%d)\n", err);
 		goto wiphy_unreg_out;
 	}
 
-	/* If cfg80211 didn't disable 40MHz HT CAP in wiphy_register(),
-	 * setup 40MHz in 2GHz band and enable OBSS scanning.
-	 */
-	if (cap && (*cap & IEEE80211_HT_CAP_SUP_WIDTH_20_40)) {
+	if (bw40_2g) {
 		err = brcmf_enable_bw40_2g(cfg);
 		if (!err)
 			err = brcmf_fil_iovar_int_set(ifp, "obss_coex",
