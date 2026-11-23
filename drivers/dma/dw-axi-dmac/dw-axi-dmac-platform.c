@@ -1169,7 +1169,7 @@ static void axi_chan_dump_lli(struct axi_dma_chan *chan,
 static void axi_chan_list_dump_lli(struct axi_dma_chan *chan,
 				   struct axi_dma_desc *desc_head)
 {
-	int count = desc_head->nr_hw_descs;
+	int count = atomic_read(&chan->descs_allocated);
 	int i;
 
 	for (i = 0; i < count; i++)
