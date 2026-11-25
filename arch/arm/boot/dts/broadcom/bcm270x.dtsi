@@ -1,6 +1,38 @@
 /* Downstream bcm283x.dtsi diff */
 #include <dt-bindings/power/raspberrypi-power.h>
 
+#ifdef BCM2711
+#include "bcm2835-rpi-ds.dtsi"
+#else
+/ {
+	/delete-node/ gpu;
+
+	soc {
+		vc4: gpu {
+			compatible = "brcm,bcm2835-vc4";
+		};
+	};
+};
+#endif
+
+&dsi0 {
+	clocks = <&clocks BCM2835_PLLD_DSI0>,
+		 <&clocks BCM2835_CLOCK_DSI0E>,
+		 <&clocks BCM2835_CLOCK_DSI0P>;
+};
+
+&pwm {
+	assigned-clock-rates = <50000000>;
+};
+
+/ {
+	clocks {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+};
+
 / {
 	chosen: chosen {
 		// Disable audio by default

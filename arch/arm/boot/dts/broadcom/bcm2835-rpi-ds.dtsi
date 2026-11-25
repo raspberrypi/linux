@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: GPL-2.0
+/* Downstream bcm2835-rpi.dtsi diff: firmware and power live under /soc */
+
+/ {
+	/delete-node/ firmware;
+
+	soc {
+		firmware: firmware {
+			compatible = "raspberrypi,bcm2835-firmware", "simple-mfd";
+			mboxes = <&mailbox>;
+
+			firmware_clocks: clocks {
+				compatible = "raspberrypi,firmware-clocks";
+				#clock-cells = <1>;
+			};
+
+#ifdef BCM2711
+			expgpio: gpio {
+				compatible = "raspberrypi,firmware-gpio";
+				gpio-controller;
+				#gpio-cells = <2>;
+				status = "okay";
+			};
+
+			reset: reset {
+				compatible = "raspberrypi,firmware-reset";
+				#reset-cells = <1>;
+			};
+#endif
+		};
+
+		power: power {
+			compatible = "raspberrypi,bcm2835-power";
+			firmware = <&firmware>;
+			#power-domain-cells = <1>;
+		};
+	};
+};
