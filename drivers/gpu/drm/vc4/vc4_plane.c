@@ -2974,7 +2974,7 @@ int vc4_plane_create_additional_planes(struct drm_device *drm)
 		 * 1 cursor plane on a crtc.
 		 */
 		drm_plane_create_zpos_property(plane, i + 1, 1,
-					       VC4_NUM_OVERLAY_PLANES + 1);
+					       VC4_NUM_TXP_OVERLAY_PLANES + 1);
 	}
 
 	drm_for_each_crtc(crtc, drm) {
