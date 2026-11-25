@@ -205,6 +205,8 @@ static void tc358762_pre_enable(struct drm_bridge *bridge,
 	ret = tc358762_init(ctx);
 	if (ret < 0)
 		dev_err(ctx->dev, "error initializing bridge (%d)\n", ret);
+
+	ctx->pre_enabled = true;
 }
 
 static int tc358762_attach(struct drm_bridge *bridge,
