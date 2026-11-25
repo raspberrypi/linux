@@ -43,8 +43,8 @@ static int viewe_bl_probe(struct i2c_client *client)
 	props.brightness = brightness;
 
 	bd = devm_backlight_device_register(&client->dev, dev_name(&client->dev),
-					   &client->dev, client, &viewe_bl_ops,
-					   &props);
+					   &client->dev, client,
+					   &viewe_bl_ops, &props);
 	if (IS_ERR(bd))
 		return PTR_ERR(bd);
 

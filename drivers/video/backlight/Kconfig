@@ -505,8 +505,12 @@ config BACKLIGHT_VIEWE_I2C
 	tristate "VIEWE I2C backlight"
 	depends on I2C
 	help
-	  Backlight driver for VIEWE DSI panels. Brightness is written to
-	  the panel MCU at I2C address 0x45, register 0x86.
+	  Say Y here to enable the I2C backlight driver for VIEWE DSI
+	  modules such as 7KF82. Brightness 0..255 is written to the
+	  panel MCU at I2C address 0x45, register 0x86.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called viewe_bl_i2c.
 
 endif # BACKLIGHT_CLASS_DEVICE
 

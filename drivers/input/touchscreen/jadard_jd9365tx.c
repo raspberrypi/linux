@@ -130,7 +130,7 @@ static bool jd_section_ready(struct i2c_client *client)
 	unsigned int waited = 0;
 
 	do {
-		msleep(2);
+		usleep_range(2000, 3000);
 		if (jd_read_reg(client, JD_ERAM_BASE, rbuf, sizeof(rbuf)))
 			return false;
 		waited += 2;
@@ -278,7 +278,7 @@ static int jadard_tp_probe(struct i2c_client *client)
 
 	if (ts->reset) {
 		gpiod_set_value_cansleep(ts->reset, 1);
-		msleep(10);
+		usleep_range(10000, 11000);
 		gpiod_set_value_cansleep(ts->reset, 0);
 		msleep(20);
 	}
