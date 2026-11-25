@@ -174,6 +174,8 @@ static int bcm2835_mbox_probe(struct platform_device *pdev)
 	if (!mbox->controller.chans)
 		return -ENOMEM;
 
+	platform_set_drvdata(pdev, mbox);
+
 	return devm_mbox_controller_register(dev, &mbox->controller);
 }
 
