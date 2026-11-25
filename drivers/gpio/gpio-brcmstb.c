@@ -585,7 +585,7 @@ static int brcmstb_gpio_suspend_noirq(struct device *dev)
 	struct brcmstb_gpio_priv *priv = dev_get_drvdata(dev);
 
 	/* Catch any wakeup sources occurring between suspend and noirq */
-	if (!priv->suspended)
+	if (priv->parent_irq > 0 && !priv->suspended)
 		return -EBUSY;
 
 	if (priv->parent_irq > 0)
