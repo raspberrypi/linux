@@ -2412,6 +2412,15 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 	const unsigned int max_tb_log2_size_y = min_tb_log2_size_y +
 			sps->log2_diff_max_min_luma_transform_block_size;
 
+	/*
+	 * A zero width is how the driver marks the SPS as not yet set (see
+	 * is_sps_set()) and it is the control's default value. Accept it so
+	 * the default can be read back and set again; decoding still refuses
+	 * to start with it ("SPS never set").
+	 */
+	if (!is_sps_set(sps))
+		return 0;
+
 	if (sps->chroma_format_idc != 1) {
 		v4l2_warn(&dev->v4l2_dev,
 			  "Chroma format (%d) unsupported\n",
