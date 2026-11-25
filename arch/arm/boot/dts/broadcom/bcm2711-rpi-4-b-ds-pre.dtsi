@@ -1,0 +1,3 @@
+// SPDX-License-Identifier: GPL-2.0
+#define BCM2711
+#define i2c0 i2c0if

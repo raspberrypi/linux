@@ -2,6 +2,43 @@
 #include "bcm270x-rpi.dtsi"
 
 / {
+	aliases {
+		blpubkey = &blpubkey;
+	};
+
+	scb-bus@fc000000 {
+		hevc_dec: codec@7eb10000 {
+			compatible = "brcm,bcm2711-hevc-dec", "raspberrypi,hevc-dec";
+			reg = <0x0 0x7eb00000  0x10000>, /* HEVC */
+			      <0x0 0x7eb10000  0x1000>;  /* INTC */
+			reg-names = "hevc",
+				    "intc";
+			interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&firmware_clocks 11>;
+		};
+	};
+};
+
+&rmem {
+	/*
+	 * RPi4 will copy the binary public key blob (if present) from the bootloader
+	 * into memory for use by the OS.
+	 */
+	blpubkey: nvram@1 {
+		compatible = "raspberrypi,bootloader-public-key", "nvmem-rmem";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x0 0x0 0x0>;
+		no-map;
+		status = "disabled";
+	};
+};
+
+&pwm1 {
+	assigned-clock-rates = <50000000>;
+};
+
+/ {
 	chosen {
 		bootargs = "coherent_pool=1M 8250.nr_uarts=1 snd_bcm2835.enable_headphones=0 cgroup_disable=memory numa_policy=interleave nvme.max_host_mem_size_mb=32";
 	};
