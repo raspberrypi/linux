@@ -2422,7 +2422,7 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 		return 0;
 
 	if (sps->chroma_format_idc != 1) {
-		v4l2_warn(&dev->v4l2_dev,
+		hevc_d_dbg(1, &dev->v4l2_dev,
 			  "Chroma format (%d) unsupported\n",
 			  sps->chroma_format_idc);
 		return -EINVAL;
@@ -2430,14 +2430,14 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 
 	if (sps->bit_depth_luma_minus8 != 0 &&
 	    sps->bit_depth_luma_minus8 != 2) {
-		v4l2_warn(&dev->v4l2_dev,
+		hevc_d_dbg(1, &dev->v4l2_dev,
 			  "Luma depth (%d) unsupported\n",
 			  sps->bit_depth_luma_minus8 + 8);
 		return -EINVAL;
 	}
 
 	if (sps->bit_depth_luma_minus8 != sps->bit_depth_chroma_minus8) {
-		v4l2_warn(&dev->v4l2_dev,
+		hevc_d_dbg(1, &dev->v4l2_dev,
 			  "Chroma depth (%d) != Luma depth (%d)\n",
 			  sps->bit_depth_chroma_minus8 + 8,
 			  sps->bit_depth_luma_minus8 + 8);
@@ -2448,7 +2448,7 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 	    sps->pic_height_in_luma_samples < HEVC_D_MIN_HEIGHT ||
 	    sps->pic_width_in_luma_samples > HEVC_D_MAX_WIDTH ||
 	    sps->pic_height_in_luma_samples > HEVC_D_MAX_HEIGHT) {
-		v4l2_warn(&dev->v4l2_dev,
+		hevc_d_dbg(1, &dev->v4l2_dev,
 			  "Bad sps width (%u) x height (%u)\n",
 			  sps->pic_width_in_luma_samples,
 			  sps->pic_height_in_luma_samples);
@@ -2497,7 +2497,7 @@ static int try_ctrl_pps(struct v4l2_ctrl *ctrl)
 	     V4L2_HEVC_PPS_FLAG_ENTROPY_CODING_SYNC_ENABLED) &&
 	    (pps->flags & V4L2_HEVC_PPS_FLAG_TILES_ENABLED) &&
 	    (pps->num_tile_columns_minus1 || pps->num_tile_rows_minus1)) {
-		v4l2_warn(&dev->v4l2_dev,
+		hevc_d_dbg(1, &dev->v4l2_dev,
 			  "WPP + Tiles not supported\n");
 		return -EINVAL;
 	}
@@ -2507,7 +2507,7 @@ static int try_ctrl_pps(struct v4l2_ctrl *ctrl)
 			ARRAY_SIZE(pps->column_width_minus1) ||
 		 pps->num_tile_rows_minus1 >
 			ARRAY_SIZE(pps->row_height_minus1))) {
-		v4l2_warn(&dev->v4l2_dev, "Tiles cols/rows too big\n");
+		hevc_d_dbg(1, &dev->v4l2_dev, "Tiles cols/rows too big\n");
 		return -EINVAL;
 	}
 
@@ -2533,7 +2533,7 @@ static int try_ctrl_slice_params(struct v4l2_ctrl *ctrl)
 	 * slice_segment_address for slice 0
 	 */
 	if (sh->slice_segment_addr != 0) {
-		v4l2_warn(&dev->v4l2_dev, "New frame but segment_addr=%d\n",
+		hevc_d_dbg(1, &dev->v4l2_dev, "New frame but segment_addr=%d\n",
 			  sh->slice_segment_addr);
 		return -EINVAL;
 	}
@@ -2542,7 +2542,7 @@ static int try_ctrl_slice_params(struct v4l2_ctrl *ctrl)
 		if (sh->slice_type != HEVC_SLICE_B &&
 		    sh->slice_type != HEVC_SLICE_P &&
 		    sh->slice_type != HEVC_SLICE_I) {
-			v4l2_warn(&dev->v4l2_dev,
+			hevc_d_dbg(1, &dev->v4l2_dev,
 				  "Slice %u: bad slice type %u\n",
 				  i, sh->slice_type);
 			return -EINVAL;
