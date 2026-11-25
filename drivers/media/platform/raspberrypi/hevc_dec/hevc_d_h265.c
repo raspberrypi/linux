@@ -1601,7 +1601,7 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	/* Frame start */
 
 	if (!is_sps_set(run->h265.sps)) {
-		v4l2_warn(&dev->v4l2_dev, "SPS never set\n");
+		hevc_d_dbg(1, &dev->v4l2_dev, "SPS never set\n");
 		goto fail;
 	}
 	/* Can't check for PPS easily as all 0's looks valid */
@@ -1658,29 +1658,29 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	if (s->sps.bit_depth_luma_minus8 == 0) {
 		if (ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_COL128 &&
 		    ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_COL128) {
-			v4l2_err(&dev->v4l2_dev,
-				 "Pixel format %#x != NV12MT_COL128 for 8-bit output",
-				 ctx->dst_fmt.pixelformat);
+			hevc_d_dbg(1, &dev->v4l2_dev,
+				   "Pixel format %#x != NV12MT_COL128 for 8-bit output\n",
+				   ctx->dst_fmt.pixelformat);
 			goto fail;
 		}
 	} else {
 		if (ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12MT_10_COL128 &&
 		    ctx->dst_fmt.pixelformat != V4L2_PIX_FMT_NV12_10_COL128) {
-			v4l2_err(&dev->v4l2_dev,
-				 "Pixel format %#x != NV12MT_10_COL128 for 10-bit output",
-				 ctx->dst_fmt.pixelformat);
+			hevc_d_dbg(1, &dev->v4l2_dev,
+				   "Pixel format %#x != NV12MT_10_COL128 for 10-bit output\n",
+				   ctx->dst_fmt.pixelformat);
 			goto fail;
 		}
 	}
 
 	if (s->sps.pic_width_in_luma_samples > ctx->dst_fmt.width ||
 	    s->sps.pic_height_in_luma_samples > ctx->dst_fmt.height) {
-		v4l2_warn(&dev->v4l2_dev,
-			  "SPS size (%dx%d) > capture size (%d,%d)\n",
-			  s->sps.pic_width_in_luma_samples,
-			  s->sps.pic_height_in_luma_samples,
-			  ctx->dst_fmt.width,
-			  ctx->dst_fmt.height);
+		hevc_d_dbg(1, &dev->v4l2_dev,
+			   "SPS size (%dx%d) > capture size (%d,%d)\n",
+			   s->sps.pic_width_in_luma_samples,
+			   s->sps.pic_height_in_luma_samples,
+			   ctx->dst_fmt.width,
+			   ctx->dst_fmt.height);
 		goto fail;
 	}
 
@@ -1688,33 +1688,33 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 	case V4L2_PIX_FMT_NV12MT_COL128:
 	case V4L2_PIX_FMT_NV12MT_10_COL128:
 		if (run->dst->vb2_buf.num_planes != 2) {
-			v4l2_warn(&dev->v4l2_dev, "Capture planes (%d) != 2\n",
-				  run->dst->vb2_buf.num_planes);
+			hevc_d_dbg(1, &dev->v4l2_dev, "Capture planes (%d) != 2\n",
+				   run->dst->vb2_buf.num_planes);
 			goto fail;
 		}
 		if (vb2_plane_size(&run->dst->vb2_buf, 0) < ctx->dst_fmt.plane_fmt[0].sizeimage ||
 		    vb2_plane_size(&run->dst->vb2_buf, 1) < ctx->dst_fmt.plane_fmt[1].sizeimage) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "Capture planes length (%lu/%lu) < sizeimage (%d/%d)\n",
-				  vb2_plane_size(&run->dst->vb2_buf, 0),
-				  vb2_plane_size(&run->dst->vb2_buf, 1),
-				  ctx->dst_fmt.plane_fmt[0].sizeimage,
-				  ctx->dst_fmt.plane_fmt[1].sizeimage);
+			hevc_d_dbg(1, &dev->v4l2_dev,
+				   "Capture planes length (%lu/%lu) < sizeimage (%d/%d)\n",
+				   vb2_plane_size(&run->dst->vb2_buf, 0),
+				   vb2_plane_size(&run->dst->vb2_buf, 1),
+				   ctx->dst_fmt.plane_fmt[0].sizeimage,
+				   ctx->dst_fmt.plane_fmt[1].sizeimage);
 			goto fail;
 		}
 		break;
 	case V4L2_PIX_FMT_NV12_COL128:
 	case V4L2_PIX_FMT_NV12_10_COL128:
 		if (run->dst->vb2_buf.num_planes != 1) {
-			v4l2_warn(&dev->v4l2_dev, "Capture planes (%d) != 1\n",
-				  run->dst->vb2_buf.num_planes);
+			hevc_d_dbg(1, &dev->v4l2_dev, "Capture planes (%d) != 1\n",
+				   run->dst->vb2_buf.num_planes);
 			goto fail;
 		}
 		if (vb2_plane_size(&run->dst->vb2_buf, 0) < ctx->dst_fmt.plane_fmt[0].sizeimage) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "Capture planes length (%lu) < sizeimage (%d)\n",
-				  vb2_plane_size(&run->dst->vb2_buf, 0),
-				  ctx->dst_fmt.plane_fmt[0].sizeimage);
+			hevc_d_dbg(1, &dev->v4l2_dev,
+				   "Capture planes length (%lu) < sizeimage (%d)\n",
+				   vb2_plane_size(&run->dst->vb2_buf, 0),
+				   ctx->dst_fmt.plane_fmt[0].sizeimage);
 			goto fail;
 		}
 		break;
@@ -1764,24 +1764,24 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		 * checked before use.
 		 */
 		if (sh->slice_segment_addr >= s->ctb_size) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "Slice %u: segment addr %u >= pic size in CTBs %u\n",
-				  i, sh->slice_segment_addr, s->ctb_size);
+			hevc_d_dbg(1, &dev->v4l2_dev,
+				   "Slice %u: segment addr %u >= pic size in CTBs %u\n",
+				   i, sh->slice_segment_addr, s->ctb_size);
 			goto fail;
 		}
 
 		if (old_bits && sh->bit_size <= 8 * (u64)sh->data_byte_offset) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "data_byte_offset %u * 8 >= bits %u\n",
-				  sh->data_byte_offset, sh->bit_size);
+			hevc_d_dbg(1, &dev->v4l2_dev,
+				   "data_byte_offset %u * 8 >= bits %u\n",
+				   sh->data_byte_offset, sh->bit_size);
 			goto fail;
 		}
 
 		if ((u64)sh->data_byte_offset + byte_size > run->src->planes[0].bytesused) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "data_byte_offset %u + bits %u (= %u bytes) > bytesused %u\n",
-				  sh->data_byte_offset, bit_size, byte_size,
-				  run->src->planes[0].bytesused);
+			hevc_d_dbg(1, &dev->v4l2_dev,
+				   "data_byte_offset %u + bits %u (= %u bytes) > bytesused %u\n",
+				   sh->data_byte_offset, bit_size, byte_size,
+				   run->src->planes[0].bytesused);
 			goto fail;
 		}
 		/* BFNUM (data_len) includes the byte with rbsp_stop_one_bit which is not
@@ -1827,9 +1827,9 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		/* Calc all the random coord info to avoid repeated conversion in/out */
 		s->start_ts = s->ctb_addr_rs_to_ts[sh->slice_segment_addr];
 		if (i != 0 && s->start_ts <= prev_start_ts) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "Slice %u: segment addr %u not after previous slice\n",
-				  i, sh->slice_segment_addr);
+			hevc_d_dbg(1, &dev->v4l2_dev,
+				   "Slice %u: segment addr %u not after previous slice\n",
+				   i, sh->slice_segment_addr);
 			goto fail;
 		}
 		prev_start_ts = s->start_ts;
@@ -1884,9 +1884,9 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 					   "Missing unused DPB ent %d, timestamp=%lld\n",
 					   i, (long long)dec->dpb[i].timestamp);
 			else
-				v4l2_warn(&dev->v4l2_dev,
-					  "Missing inuse DPB ent %d, timestamp=%lld\n",
-					  i, (long long)dec->dpb[i].timestamp);
+				hevc_d_dbg(1, &dev->v4l2_dev,
+					   "Missing inuse DPB ent %d, timestamp=%lld\n",
+					   i, (long long)dec->dpb[i].timestamp);
 			de->ref_slots[i] = lkg_slot;
 			continue;
 		}
@@ -1894,10 +1894,10 @@ static int hevc_d_h265_setup(struct hevc_d_ctx *ctx, struct hevc_d_run *run)
 		if (s->use_aux) {
 			dpb_q_aux[i] = aux_q_ref_idx(ctx, buf->index);
 			if (!dpb_q_aux[i])
-				v4l2_warn(&dev->v4l2_dev,
-					  "Missing DPB AUX ent %d, timestamp=%lld, index=%d\n",
-					  i, (long long)dec->dpb[i].timestamp,
-					  buf->index);
+				hevc_d_dbg(1, &dev->v4l2_dev,
+					   "Missing DPB AUX ent %d, timestamp=%lld, index=%d\n",
+					   i, (long long)dec->dpb[i].timestamp,
+					   buf->index);
 		}
 
 		de->ref_slots[i] = buf->index;
@@ -2473,25 +2473,25 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 			sps->log2_diff_max_min_luma_transform_block_size;
 
 	if (sps->chroma_format_idc != 1) {
-		v4l2_warn(&dev->v4l2_dev,
-			  "Chroma format (%d) unsupported\n",
-			  sps->chroma_format_idc);
+		hevc_d_dbg(1, &dev->v4l2_dev,
+			   "Chroma format (%d) unsupported\n",
+			   sps->chroma_format_idc);
 		return -EINVAL;
 	}
 
 	if (sps->bit_depth_luma_minus8 != 0 &&
 	    sps->bit_depth_luma_minus8 != 2) {
-		v4l2_warn(&dev->v4l2_dev,
-			  "Luma depth (%d) unsupported\n",
-			  sps->bit_depth_luma_minus8 + 8);
+		hevc_d_dbg(1, &dev->v4l2_dev,
+			   "Luma depth (%d) unsupported\n",
+			   sps->bit_depth_luma_minus8 + 8);
 		return -EINVAL;
 	}
 
 	if (sps->bit_depth_luma_minus8 != sps->bit_depth_chroma_minus8) {
-		v4l2_warn(&dev->v4l2_dev,
-			  "Chroma depth (%d) != Luma depth (%d)\n",
-			  sps->bit_depth_chroma_minus8 + 8,
-			  sps->bit_depth_luma_minus8 + 8);
+		hevc_d_dbg(1, &dev->v4l2_dev,
+			   "Chroma depth (%d) != Luma depth (%d)\n",
+			   sps->bit_depth_chroma_minus8 + 8,
+			   sps->bit_depth_luma_minus8 + 8);
 		return -EINVAL;
 	}
 
@@ -2499,10 +2499,10 @@ static int try_ctrl_sps(struct v4l2_ctrl *ctrl)
 	    sps->pic_height_in_luma_samples < HEVC_D_MIN_HEIGHT ||
 	    sps->pic_width_in_luma_samples > HEVC_D_MAX_WIDTH ||
 	    sps->pic_height_in_luma_samples > HEVC_D_MAX_HEIGHT) {
-		v4l2_warn(&dev->v4l2_dev,
-			  "Bad sps width (%u) x height (%u)\n",
-			  sps->pic_width_in_luma_samples,
-			  sps->pic_height_in_luma_samples);
+		hevc_d_dbg(1, &dev->v4l2_dev,
+			   "Bad sps width (%u) x height (%u)\n",
+			   sps->pic_width_in_luma_samples,
+			   sps->pic_height_in_luma_samples);
 		return -EINVAL;
 	}
 
@@ -2574,8 +2574,8 @@ static int try_ctrl_pps(struct v4l2_ctrl *ctrl)
 	     V4L2_HEVC_PPS_FLAG_ENTROPY_CODING_SYNC_ENABLED) &&
 	    (pps->flags & V4L2_HEVC_PPS_FLAG_TILES_ENABLED) &&
 	    (pps->num_tile_columns_minus1 || pps->num_tile_rows_minus1)) {
-		v4l2_warn(&dev->v4l2_dev,
-			  "WPP + Tiles not supported\n");
+		hevc_d_dbg(1, &dev->v4l2_dev,
+			   "WPP + Tiles not supported\n");
 		return -EINVAL;
 	}
 
@@ -2584,7 +2584,7 @@ static int try_ctrl_pps(struct v4l2_ctrl *ctrl)
 			ARRAY_SIZE(pps->column_width_minus1) ||
 		 pps->num_tile_rows_minus1 >=
 			ARRAY_SIZE(pps->row_height_minus1))) {
-		v4l2_warn(&dev->v4l2_dev, "Tiles cols/rows too big\n");
+		hevc_d_dbg(1, &dev->v4l2_dev, "Tiles cols/rows too big\n");
 		return -EINVAL;
 	}
 
@@ -2610,30 +2610,30 @@ static int try_ctrl_slice_params(struct v4l2_ctrl *ctrl)
 	 * slice_segment_address for slice 0
 	 */
 	if (sh->slice_segment_addr != 0) {
-		v4l2_warn(&dev->v4l2_dev, "New frame but segment_addr=%d\n",
-			  sh->slice_segment_addr);
+		hevc_d_dbg(1, &dev->v4l2_dev, "New frame but segment_addr=%d\n",
+			   sh->slice_segment_addr);
 		return -EINVAL;
 	}
 
 	/* The first slice segment of a picture cannot be dependent */
 	if (sh->flags & V4L2_HEVC_SLICE_PARAMS_FLAG_DEPENDENT_SLICE_SEGMENT) {
-		v4l2_warn(&dev->v4l2_dev,
-			  "New frame but dependent slice segment\n");
+		hevc_d_dbg(1, &dev->v4l2_dev,
+			   "New frame but dependent slice segment\n");
 		return -EINVAL;
 	}
 
 	for (i = 0; i != ctrl->new_elems; ++i, ++sh) {
 		if (!sh->bit_size) {
-			v4l2_warn(&dev->v4l2_dev, "Slice %u: bit size zero\n", i);
+			hevc_d_dbg(1, &dev->v4l2_dev, "Slice %u: bit size zero\n", i);
 			return -EINVAL;
 		}
 
 		if (sh->slice_type != HEVC_SLICE_B &&
 		    sh->slice_type != HEVC_SLICE_P &&
 		    sh->slice_type != HEVC_SLICE_I) {
-			v4l2_warn(&dev->v4l2_dev,
-				  "Slice %u: bad slice type %u\n",
-				  i, sh->slice_type);
+			hevc_d_dbg(1, &dev->v4l2_dev,
+				   "Slice %u: bad slice type %u\n",
+				   i, sh->slice_type);
 			return -EINVAL;
 		}
 
