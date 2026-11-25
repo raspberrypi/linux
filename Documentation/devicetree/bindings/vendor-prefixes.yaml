@@ -1739,6 +1739,8 @@ patternProperties:
     description: Vicor Corporation
   "^videostrong,.*":
     description: Videostrong Technology Co., Ltd.
+  "^viewe,.*":
+    description: VIEWE Technology Co., Ltd.
   "^virtio,.*":
     description: Virtual I/O Device Specification, developed by the OASIS consortium
   "^virtual,.*":
