@@ -6247,6 +6247,18 @@ Params: tl034wvs03              4.0" 480x480 2lane
                                 functionality is needed)
 
 
+Name:   vc4-kms-dsi-viewe-7inch
+Info:   Enable the VIEWE 7" 720x1280 JD9365TX in-cell DSI panel.
+        2-lane, DSI1 + i2c_csi_dsi (Pi 3/4/5).
+Load:   dtoverlay=vc4-kms-dsi-viewe-7inch,<param>=<val>
+Params: rotation                Display rotation {0,90,180,270}
+        notouch                 Disable the touch controller
+        nobl                    Disable the backlight
+        invx                    Touchscreen inverted x axis
+        invy                    Touchscreen inverted y axis
+        swapxy                  Touchscreen swapped x y axis
+
+
 Name:   vc4-kms-dsi-waveshare-800x480
 Info:   Enable the Waveshare 4.3" 800x480 DSI screen.
         It tries to look like the Pi 7" display, but won't accept some of the
