@@ -672,6 +672,8 @@ struct bcm2835_codec_q_data {
 	/* One extra buffer header so we can send an EOS. */
 	struct m2m_mmal_buffer	eos_buffer;
 	bool			eos_buffer_in_use;	/* debug only */
+	/* STOP received while the MMAL input port was disabled */
+	bool			eos_buffer_pending;
 };
 
 struct bcm2835_codec_dev {
@@ -2474,6 +2476,42 @@ static int vidioc_try_decoder_cmd(struct file *file, void *priv,
 	return 0;
 }
 
+/*
+ * A STOP can arrive before VIDIOC_STREAMON(OUTPUT), e.g. when the client hits
+ * end of stream before its first frame. Submitted then, the EOS buffer would
+ * be queued on the disabled port's buffer list, and start_streaming() would
+ * memset it while still linked: port_enable() then oopses in list_del() on
+ * its NULL pointers. Hold the EOS back until the port is enabled.
+ */
+static int bcm2835_codec_submit_eos(struct bcm2835_codec_ctx *ctx,
+				    struct bcm2835_codec_q_data *q_data)
+{
+	if (!ctx->component->input[0].enabled) {
+		q_data->eos_buffer_pending = true;
+		return 0;
+	}
+
+	q_data->eos_buffer.mmal.buffer_size = 0;
+	q_data->eos_buffer.mmal.length = 0;
+	q_data->eos_buffer.mmal.mmal_flags = MMAL_BUFFER_HEADER_FLAG_EOS;
+	q_data->eos_buffer.mmal.pts = 0;
+	q_data->eos_buffer.mmal.dts = 0;
+
+	return vchiq_mmal_submit_buffer(ctx->dev->instance,
+					&ctx->component->input[0],
+					&q_data->eos_buffer.mmal);
+}
+
+/* A START cancels a STOP that bcm2835_codec_submit_eos() still holds back. */
+static void bcm2835_codec_cancel_pending_eos(struct bcm2835_codec_q_data *q_data)
+{
+	if (!q_data->eos_buffer_pending)
+		return;
+
+	q_data->eos_buffer_pending = false;
+	q_data->eos_buffer_in_use = false;
+}
+
 static int vidioc_decoder_cmd(struct file *file, void *priv,
 			      struct v4l2_decoder_cmd *cmd)
 {
@@ -2494,19 +2532,10 @@ static int vidioc_decoder_cmd(struct file *file, void *priv,
 			v4l2_err(&ctx->dev->v4l2_dev, "EOS buffers already in use\n");
 		q_data->eos_buffer_in_use = true;
 
-		q_data->eos_buffer.mmal.buffer_size = 0;
-		q_data->eos_buffer.mmal.length = 0;
-		q_data->eos_buffer.mmal.mmal_flags =
-						MMAL_BUFFER_HEADER_FLAG_EOS;
-		q_data->eos_buffer.mmal.pts = 0;
-		q_data->eos_buffer.mmal.dts = 0;
-
 		if (!ctx->component)
 			break;
 
-		ret = vchiq_mmal_submit_buffer(ctx->dev->instance,
-					       &ctx->component->input[0],
-					       &q_data->eos_buffer.mmal);
+		ret = bcm2835_codec_submit_eos(ctx, q_data);
 		if (ret)
 			v4l2_err(&ctx->dev->v4l2_dev,
 				 "%s: EOS buffer submit failed %d\n",
@@ -2515,6 +2544,7 @@ static int vidioc_decoder_cmd(struct file *file, void *priv,
 		break;
 
 	case V4L2_DEC_CMD_START:
+		bcm2835_codec_cancel_pending_eos(q_data);
 		dst_vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx,
 					 V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 		vb2_clear_last_buffer_dequeued(dst_vq);
@@ -2562,19 +2592,10 @@ static int vidioc_encoder_cmd(struct file *file, void *priv,
 			v4l2_err(&ctx->dev->v4l2_dev, "EOS buffers already in use\n");
 		q_data->eos_buffer_in_use = true;
 
-		q_data->eos_buffer.mmal.buffer_size = 0;
-		q_data->eos_buffer.mmal.length = 0;
-		q_data->eos_buffer.mmal.mmal_flags =
-						MMAL_BUFFER_HEADER_FLAG_EOS;
-		q_data->eos_buffer.mmal.pts = 0;
-		q_data->eos_buffer.mmal.dts = 0;
-
 		if (!ctx->component)
 			break;
 
-		ret = vchiq_mmal_submit_buffer(ctx->dev->instance,
-					       &ctx->component->input[0],
-					       &q_data->eos_buffer.mmal);
+		ret = bcm2835_codec_submit_eos(ctx, q_data);
 		if (ret)
 			v4l2_err(&ctx->dev->v4l2_dev,
 				 "%s: EOS buffer submit failed %d\n",
@@ -2582,7 +2603,7 @@ static int vidioc_encoder_cmd(struct file *file, void *priv,
 
 		break;
 	case V4L2_ENC_CMD_START:
-		/* Do we need to do anything here? */
+		bcm2835_codec_cancel_pending_eos(q_data);
 		break;
 
 	default:
@@ -3126,10 +3147,13 @@ static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 		 * We only need the MMAL part, and want to NOT attach a memory
 		 * buffer to it as it should only take flags.
 		 */
+		bool eos_pending = q_data->eos_buffer_pending;
+
 		memset(&q_data->eos_buffer, 0, sizeof(q_data->eos_buffer));
 		mmal_vchi_buffer_init(dev->instance,
 				      &q_data->eos_buffer.mmal);
-		q_data->eos_buffer_in_use = false;
+		q_data->eos_buffer_in_use = eos_pending;
+		q_data->eos_buffer_pending = false;
 
 		ret = vchiq_mmal_port_enable(dev->instance,
 					     port,
@@ -3137,6 +3161,14 @@ static int bcm2835_codec_start_streaming(struct vb2_queue *q,
 		if (ret)
 			v4l2_err(&ctx->dev->v4l2_dev, "%s: Failed enabling i/p port, ret %d\n",
 				 __func__, ret);
+		/*
+		 * Drain asked before any frame: send the EOS now. A failure is
+		 * only logged, as in the STOP ioctl: failing STREAMON here would
+		 * leave the port enabled behind vb2's back.
+		 */
+		else if (eos_pending && bcm2835_codec_submit_eos(ctx, q_data))
+			v4l2_err(&ctx->dev->v4l2_dev, "%s: EOS buffer submit failed\n",
+				 __func__);
 	} else {
 		if (!port->enabled) {
 			ret = vchiq_mmal_port_enable(dev->instance,
