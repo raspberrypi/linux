@@ -19,7 +19,6 @@ cam_node: mira220@10 {
 		cam_endpoint: endpoint {
 			clock-lanes = <0>;
 			data-lanes = <1 2>;
-			// clock-noncontinuous;
 			link-frequencies =
 				/bits/ 64 <750000000>;
 		};

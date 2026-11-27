@@ -3,8 +3,6 @@
 /dts-v1/;
 /plugin/;
 
-#include <dt-bindings/gpio/gpio.h>
-
 /{
 	compatible = "brcm,bcm2835";
 
@@ -30,6 +28,16 @@
 		};
 	};
 
+	reg_frag: fragment@3 {
+		target = <&cam1_reg>;
+		cam_reg: __overlay__ {
+			startup-delay-us = <120000>;
+			off-on-delay-us = <40000>;
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+		};
+	};
+
 	i2c_frag: fragment@100 {
 		target = <&i2c_csi_dsi>;
 		__overlay__ {
@@ -38,7 +46,6 @@
 			status = "okay";
 
 			#include "mira220.dtsi"
-
 		};
 	};
 
@@ -52,7 +59,6 @@
 					remote-endpoint = <&cam_endpoint>;
 					clock-lanes = <0>;
 					data-lanes = <1 2>;
-					// clock-noncontinuous; // mira220 use cont clk
 				};
 			};
 		};
@@ -65,7 +71,6 @@
 		};
 	};
 
-
 	__overrides__ {
 		rotation = <&cam_node>,"rotation:0";
 		orientation = <&cam_node>,"orientation:0";
@@ -73,6 +78,7 @@
 		cam0 = <&i2c_frag>, "target:0=",<&i2c_csi_dsi0>,
 		       <&csi_frag>, "target:0=",<&csi0>,
 		       <&clk_frag>, "target:0=",<&cam0_clk>,
+		       <&reg_frag>, "target:0=",<&cam0_reg>,
 		       <&cam_node>, "clocks:0=",<&cam0_clk>,
 		       <&cam_node>, "vana-supply:0=",<&cam0_reg>;
 	};

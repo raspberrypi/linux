@@ -1,0 +1,20 @@
+// Fragment that configures an mira016
+
+cam_node: mira016@36 {
+	compatible = "ams,mira016";
+	reg = <0x36>;
+	status = "disabled";
+	clocks = <&cam1_clk>;
+	vdd28-supply = <&cam1_reg>;		/* 1.8v */
+	vdd11-supply = <&cam_dummy_reg>;	/* 1.2v */
+
+	port {
+		cam_endpoint: endpoint {
+			clock-lanes = <0>;
+			data-lanes = <1>;
+			clock-noncontinuous;
+			link-frequencies =
+				/bits/ 64 <750000000>;
+		};
+	};
+};
