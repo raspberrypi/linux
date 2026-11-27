@@ -11,10 +11,10 @@
  * Copyright (C) 2018 Bootlin
  */
 
+#include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/module.h>
-#include <linux/of.h>
 
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
@@ -91,6 +91,7 @@ static int hevc_d_init_ctrls(struct hevc_d_dev *dev, struct hevc_d_ctx *ctx)
 {
 	struct v4l2_ctrl_handler *hdl = &ctx->hdl;
 	unsigned int i;
+	int ret;
 
 	v4l2_ctrl_handler_init(hdl, ARRAY_SIZE(hevc_d_ctrls));
 	if (hdl->error) {
@@ -111,8 +112,14 @@ static int hevc_d_init_ctrls(struct hevc_d_dev *dev, struct hevc_d_ctx *ctx)
 		}
 	}
 
+	ret = v4l2_ctrl_handler_setup(hdl);
+	if (ret) {
+		v4l2_err(&dev->v4l2_dev, "Failed to set up control handler\n");
+		v4l2_ctrl_handler_free(hdl);
+		return ret;
+	}
+
 	ctx->fh.ctrl_handler = hdl;
-	v4l2_ctrl_handler_setup(hdl);
 
 	return 0;
 }
@@ -155,6 +162,7 @@ static int hevc_d_open(struct file *file)
 err_ctx:
 	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
 err_free:
+	v4l2_fh_exit(&ctx->fh);
 	mutex_destroy(&ctx->ctx_mutex);
 	kfree(ctx);
 	return ret;
@@ -190,13 +198,39 @@ static const struct v4l2_file_operations hevc_d_fops = {
 	.mmap		= v4l2_m2m_fop_mmap,
 };
 
+/*
+ * Separate device release from unregister as unbind doesn't shut everything
+ * down. On unbind this may happen some time after unregister.
+ */
+static void hevc_d_video_device_release(struct video_device *vfd)
+{
+	struct hevc_d_dev *dev = container_of(vfd, struct hevc_d_dev, vfd);
+
+	v4l2_device_unregister(&dev->v4l2_dev);
+	v4l2_m2m_release(dev->m2m_dev);
+	media_device_cleanup(&dev->mdev);
+	kfree(dev);
+}
+
+static void hevc_d_unregister(struct hevc_d_dev *dev)
+{
+	/* Stop new jobs being started - never resumed */
+	v4l2_m2m_suspend(dev->m2m_dev);
+	/* Wait for any work still in flight */
+	hevc_d_h265_sync(dev);
+	/* H/w now idle so we can shut it down */
+	hevc_d_hw_remove(dev);
+	/* Must be last - drops what may be the final ref to dev */
+	video_unregister_device(&dev->vfd);
+}
+
 static const struct video_device hevc_d_video_device = {
 	.name		= HEVC_D_NAME,
 	.vfl_dir	= VFL_DIR_M2M,
 	.fops		= &hevc_d_fops,
 	.ioctl_ops	= &hevc_d_ioctl_ops,
 	.minor		= -1,
-	.release	= video_device_release_empty,
+	.release	= hevc_d_video_device_release,
 	.device_caps	= V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING,
 };
 
@@ -215,7 +249,7 @@ static int hevc_d_probe(struct platform_device *pdev)
 	struct video_device *vfd;
 	int ret;
 
-	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
+	dev = kzalloc_obj(*dev);
 	if (!dev)
 		return -ENOMEM;
 
@@ -226,8 +260,8 @@ static int hevc_d_probe(struct platform_device *pdev)
 
 	ret = hevc_d_hw_probe(dev);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed to probe hardware - %d\n", ret);
-		return ret;
+		dev_err_probe(&pdev->dev, ret, "Failed to probe hardware\n");
+		goto err_free;
 	}
 
 	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
@@ -236,10 +270,7 @@ static int hevc_d_probe(struct platform_device *pdev)
 		goto err_hw;
 	}
 
-	mutex_init(&dev->dev_mutex);
-
 	vfd = &dev->vfd;
-	vfd->lock = &dev->dev_mutex;
 	vfd->v4l2_dev = &dev->v4l2_dev;
 
 	snprintf(vfd->name, sizeof(vfd->name), "%s", hevc_d_video_device.name);
@@ -298,15 +329,18 @@ static int hevc_d_probe(struct platform_device *pdev)
 err_m2m_mc:
 	v4l2_m2m_unregister_media_controller(dev->m2m_dev);
 err_video:
-	video_unregister_device(&dev->vfd);
+	hevc_d_unregister(dev);
+	return ret;
+
 err_m2m:
 	media_device_cleanup(&dev->mdev);
 	v4l2_m2m_release(dev->m2m_dev);
 err_v4l2:
-	mutex_destroy(&dev->dev_mutex);
 	v4l2_device_unregister(&dev->v4l2_dev);
 err_hw:
 	hevc_d_hw_remove(dev);
+err_free:
+	kfree(dev);
 
 	return ret;
 }
@@ -317,14 +351,7 @@ static void hevc_d_remove(struct platform_device *pdev)
 
 	media_device_unregister(&dev->mdev);
 	v4l2_m2m_unregister_media_controller(dev->m2m_dev);
-	media_device_cleanup(&dev->mdev);
-
-	v4l2_m2m_release(dev->m2m_dev);
-	video_unregister_device(&dev->vfd);
-	mutex_destroy(&dev->dev_mutex);
-	v4l2_device_unregister(&dev->v4l2_dev);
-
-	hevc_d_hw_remove(dev);
+	hevc_d_unregister(dev);
 }
 
 static int hevc_d_runtime_suspend(struct device *d)
@@ -392,7 +419,7 @@ static struct platform_driver hevc_d_driver = {
 	.remove		= hevc_d_remove,
 	.driver		= {
 		.name = HEVC_D_NAME,
-		.of_match_table	= of_match_ptr(hevc_d_dt_match),
+		.of_match_table	= hevc_d_dt_match,
 		.pm = pm_ptr(&hevc_d_pm_ops),
 	},
 };

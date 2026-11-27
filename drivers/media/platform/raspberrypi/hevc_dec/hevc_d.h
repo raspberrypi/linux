@@ -110,7 +110,7 @@ struct hevc_d_ctx {
 	 */
 	int fatal_err;
 
-	/* Lock for queue operations */
+	/* Lock for queue operations and src_fmt / dst_fmt */
 	struct mutex			ctx_mutex;
 
 	struct v4l2_ctrl_handler	hdl;
@@ -137,11 +137,16 @@ struct hevc_d_ctx {
 	size_t pu_size_max;
 	size_t coeff_size_max;
 
-	/* Spinlock protecting aux_free */
-	spinlock_t aux_lock;
+	/* Aux structures only used in setup so no locking needed */
 	struct hevc_d_q_aux *aux_free;
-
 	struct hevc_d_q_aux *aux_ents[HEVC_D_AUX_ENT_COUNT];
+
+	struct hevc_d_slot {
+		u32 refybase;
+		u32 refcbase;
+		u32 colbase;
+		u32 poc;
+	} slots[HEVC_D_AUX_ENT_COUNT];
 
 	unsigned int colmv_stride;
 	unsigned int colmv_picsize;
@@ -174,9 +179,6 @@ struct hevc_d_dev {
 	struct platform_device	*pdev;
 	struct device		*dev;
 	struct v4l2_m2m_dev	*m2m_dev;
-
-	/* Video device file (vfd) mutex */
-	struct mutex		dev_mutex;
 
 	void __iomem		*base_irq;
 	void __iomem		*base_h265;

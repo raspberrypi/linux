@@ -11,7 +11,6 @@
  * Copyright (C) 2018 Bootlin
  */
 
-#include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-event.h>
@@ -43,7 +42,7 @@ size_t hevc_d_round_up_size(const size_t x)
 	return x >= ((size_t)3 << n) ? (size_t)4 << n : ((size_t)3 << n);
 }
 
-size_t hevc_d_bit_buf_size(unsigned int w, unsigned int h, unsigned int bits_minus8)
+static u32 bit_buf_size(unsigned int w, unsigned int h, unsigned int bits_minus8)
 {
 	const size_t wxh = w * h;
 	size_t bits_alloc;
@@ -59,42 +58,39 @@ size_t hevc_d_bit_buf_size(unsigned int w, unsigned int h, unsigned int bits_min
 		wxh * 3 / 8;
 	/* Allow for bit depth */
 	bits_alloc += (bits_alloc * bits_minus8) / 8;
-	return hevc_d_round_up_size(bits_alloc);
+	return (u32)hevc_d_round_up_size(bits_alloc);
 }
 
 void hevc_d_prepare_src_format(struct v4l2_pix_format_mplane *pix_fmt)
 {
-	size_t size;
-	u32 w;
-	u32 h;
+	unsigned int width = pix_fmt->width;
+	unsigned int height = pix_fmt->height;
+	unsigned int sizeimage = pix_fmt->plane_fmt[0].sizeimage;
 
-	w = pix_fmt->width;
-	h = pix_fmt->height;
-	if (!w || !h) {
-		w = HEVC_D_DEFAULT_WIDTH;
-		h = HEVC_D_DEFAULT_HEIGHT;
-	}
-	if (w > HEVC_D_MAX_WIDTH)
-		w = HEVC_D_MAX_WIDTH;
-	if (h > HEVC_D_MAX_HEIGHT)
-		h = HEVC_D_MAX_HEIGHT;
+	if (!width)
+		width = HEVC_D_DEFAULT_WIDTH;
+	else
+		width = clamp(width, HEVC_D_MIN_WIDTH, HEVC_D_MAX_WIDTH);
+	if (!height)
+		height = HEVC_D_DEFAULT_HEIGHT;
+	else
+		height = clamp(height, HEVC_D_MIN_HEIGHT, HEVC_D_MAX_HEIGHT);
 
-	if (!pix_fmt->plane_fmt[0].sizeimage ||
-	    pix_fmt->plane_fmt[0].sizeimage > SZ_32M) {
-		/* Unspecified or way too big - pick max for size */
-		size = hevc_d_bit_buf_size(w, h, 2);
-	}
+	/* If unspecified or way too big - pick max for size */
+	if (!sizeimage || sizeimage > SZ_32M)
+		sizeimage = bit_buf_size(width, height, 2);
+
 	/* Set a minimum */
-	size = max_t(u32, SZ_4K, pix_fmt->plane_fmt[0].sizeimage);
+	sizeimage = max(SZ_4K, sizeimage);
 
 	pix_fmt->pixelformat = V4L2_PIX_FMT_HEVC_SLICE;
-	pix_fmt->width = w;
-	pix_fmt->height = h;
+	pix_fmt->width = width;
+	pix_fmt->height = height;
 	pix_fmt->num_planes = 1;
 	pix_fmt->field = V4L2_FIELD_NONE;
 	/* Zero bytes per line for encoded source. */
 	pix_fmt->plane_fmt[0].bytesperline = 0;
-	pix_fmt->plane_fmt[0].sizeimage = size;
+	pix_fmt->plane_fmt[0].sizeimage = sizeimage;
 
 	/* Zero all unused planes */
 	memset(pix_fmt->plane_fmt + pix_fmt->num_planes, 0,
@@ -333,16 +329,27 @@ static int hevc_d_enum_fmt_vid_cap(struct file *file, void *priv,
 }
 
 /*
+ * The dst format may not change whilst CAPTURE buffers exist as they were
+ * sized from it, or whilst CAPTURE is streaming as decoder resources are
+ * sized from it at start. Buffers existing is not sufficient as
+ * VIDIOC_REMOVE_BUFS can remove them all whilst streaming.
+ */
+static bool dst_fmt_locked(struct vb2_queue *vq)
+{
+	return vb2_is_busy(vq) || vb2_is_streaming(vq);
+}
+
+/*
  * get dst format - sets it to default if otherwise unset
- * default is not updated whilst CAPTURE buffers exist as they were sized
- * from it
+ * default is not updated whilst the dst format is locked
  * returns a pointer to the struct as a convenience
+ * Must be called with ctx_mutex held
  */
 static struct v4l2_pix_format_mplane *get_dst_fmt(struct hevc_d_ctx *const ctx)
 {
 	struct vb2_queue *vq = v4l2_m2m_get_dst_vq(ctx->fh.m2m_ctx);
 
-	if (!ctx->dst_fmt_set && !vb2_is_busy(vq))
+	if (!ctx->dst_fmt_set && !dst_fmt_locked(vq))
 		ctx->dst_fmt = hevc_d_hevc_default_dst_fmt(ctx);
 	return &ctx->dst_fmt;
 }
@@ -352,6 +359,8 @@ static int hevc_d_g_fmt_vid_cap(struct file *file, void *priv,
 {
 	struct hevc_d_ctx *ctx = hevc_d_file2ctx(file);
 
+	guard(mutex)(&ctx->ctx_mutex);
+
 	f->fmt.pix_mp = *get_dst_fmt(ctx);
 	return 0;
 }
@@ -360,6 +369,8 @@ static int hevc_d_g_fmt_vid_out(struct file *file, void *priv,
 				struct v4l2_format *f)
 {
 	struct hevc_d_ctx *ctx = hevc_d_file2ctx(file);
+
+	guard(mutex)(&ctx->ctx_mutex);
 
 	f->fmt.pix_mp = ctx->src_fmt;
 	return 0;
@@ -378,6 +389,8 @@ static int hevc_d_try_fmt_vid_cap(struct file *file, void *priv,
 		if (f->fmt.pix_mp.pixelformat == pixelformat)
 			break;
 	}
+	if (!pixelformat)
+		f->fmt.pix_mp.pixelformat = pixelformat_from_sps(sps, 0);
 
 	/*
 	 * We don't have any way of finding out colourspace so believe
@@ -386,7 +399,6 @@ static int hevc_d_try_fmt_vid_cap(struct file *file, void *priv,
 	if (f->fmt.pix_mp.colorspace == V4L2_COLORSPACE_DEFAULT)
 		copy_color(&f->fmt.pix_mp, &ctx->src_fmt);
 
-	f->fmt.pix_mp.pixelformat = pixelformat;
 	hevc_d_prepare_dst_format(&f->fmt.pix_mp);
 	return 0;
 }
@@ -405,8 +417,10 @@ static int hevc_d_s_fmt_vid_cap(struct file *file, void *priv,
 	struct vb2_queue *vq;
 	int ret;
 
+	guard(mutex)(&ctx->ctx_mutex);
+
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
-	if (vb2_is_busy(vq))
+	if (dst_fmt_locked(vq))
 		return -EBUSY;
 
 	ret = hevc_d_try_fmt_vid_cap(file, priv, f);
@@ -425,6 +439,8 @@ static int hevc_d_s_fmt_vid_out(struct file *file, void *priv,
 	struct hevc_d_ctx *ctx = hevc_d_file2ctx(file);
 	struct vb2_queue *vq;
 	int ret;
+
+	guard(mutex)(&ctx->ctx_mutex);
 
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
 	if (vb2_is_streaming(vq))
@@ -479,41 +495,21 @@ static int hevc_d_queue_setup(struct vb2_queue *vq, unsigned int *nbufs,
 			      struct device *alloc_devs[])
 {
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
-	struct v4l2_pix_format_mplane *pix_fmt;
-	int expected_nplanes;
+	const struct v4l2_pix_format_mplane *pix_fmt;
+	unsigned int i;
 
-	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
-		pix_fmt = &ctx->src_fmt;
-		expected_nplanes = 1;
-	} else {
-		pix_fmt = get_dst_fmt(ctx);
-		expected_nplanes = 2;
-	}
+	pix_fmt = V4L2_TYPE_IS_OUTPUT(vq->type) ? &ctx->src_fmt : get_dst_fmt(ctx);
 
 	if (*nplanes) {
-		if (pix_fmt->pixelformat == V4L2_PIX_FMT_NV12MT_COL128 ||
-		    pix_fmt->pixelformat == V4L2_PIX_FMT_NV12MT_10_COL128) {
-			if (*nplanes != expected_nplanes ||
-			    sizes[0] < pix_fmt->plane_fmt[0].sizeimage ||
-			    sizes[1] < pix_fmt->plane_fmt[1].sizeimage)
+		if (*nplanes != pix_fmt->num_planes)
+			return -EINVAL;
+		for (i = 0; i != pix_fmt->num_planes; ++i)
+			if (sizes[i] < pix_fmt->plane_fmt[i].sizeimage)
 				return -EINVAL;
-		} else {
-			if (sizes[0] < pix_fmt->plane_fmt[0].sizeimage)
-				return -EINVAL;
-		}
 	} else {
-		sizes[0] = pix_fmt->plane_fmt[0].sizeimage;
-		if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
-			*nplanes = 1;
-		} else {
-			if (pix_fmt->pixelformat == V4L2_PIX_FMT_NV12MT_COL128 ||
-			    pix_fmt->pixelformat == V4L2_PIX_FMT_NV12MT_10_COL128) {
-				sizes[1] = pix_fmt->plane_fmt[1].sizeimage;
-				*nplanes = 2;
-			} else {
-				*nplanes = 1;
-			}
-		}
+		*nplanes = pix_fmt->num_planes;
+		for (i = 0; i != pix_fmt->num_planes; ++i)
+			sizes[i] = pix_fmt->plane_fmt[i].sizeimage;
 	}
 
 	return 0;
@@ -523,6 +519,7 @@ static void hevc_d_queue_cleanup(struct vb2_queue *vq, u32 state)
 {
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
 	struct vb2_v4l2_buffer *vbuf;
+	struct media_request *req;
 
 	for (;;) {
 		if (V4L2_TYPE_IS_OUTPUT(vq->type))
@@ -533,9 +530,13 @@ static void hevc_d_queue_cleanup(struct vb2_queue *vq, u32 state)
 		if (!vbuf)
 			return;
 
-		v4l2_ctrl_request_complete(vbuf->vb2_buf.req_obj.req,
-					   &ctx->hdl);
+		/* Ensure requests are dealt with */
+		req = state == VB2_BUF_STATE_QUEUED ? NULL : vbuf->vb2_buf.req_obj.req;
+		if (req)
+			v4l2_ctrl_request_complete(req, &ctx->hdl);
 		v4l2_m2m_buf_done(vbuf, state);
+		if (req)
+			media_request_manual_complete(req);
 	}
 }
 
@@ -551,12 +552,11 @@ static int hevc_d_buf_prepare(struct vb2_buffer *vb)
 {
 	struct vb2_queue *vq = vb->vb2_queue;
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
-	struct v4l2_pix_format_mplane *pix_fmt;
+	struct v4l2_pix_format_mplane *pix_fmt = &ctx->dst_fmt;
 
+	/* If OUTPUT then we don't care about actual buffer size */
 	if (V4L2_TYPE_IS_OUTPUT(vq->type))
-		pix_fmt = &ctx->src_fmt;
-	else
-		pix_fmt = &ctx->dst_fmt;
+		return 0;
 
 	if (vb2_plane_size(vb, 0) < pix_fmt->plane_fmt[0].sizeimage ||
 	    vb2_plane_size(vb, 1) < pix_fmt->plane_fmt[1].sizeimage)
@@ -568,6 +568,35 @@ static int hevc_d_buf_prepare(struct vb2_buffer *vb)
 	return 0;
 }
 
+/*
+ * Called before buffer memory is released: on free, VIDIOC_REMOVE_BUFS or
+ * when a dmabuf is replaced on QBUF.
+ * A CAPTURE buffer that userspace has dequeued may still be in use as a
+ * reference by frames in the decode pipeline so make sure the decoder has
+ * let go of it first.
+ */
+static void hevc_d_buf_cleanup(struct vb2_buffer *vb)
+{
+	struct vb2_queue *vq = vb->vb2_queue;
+	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
+
+	if (V4L2_TYPE_IS_OUTPUT(vq->type))
+		return;
+
+	hevc_d_h265_invalidate_slot(ctx, vb->index);
+}
+
+static bool other_q_started(struct hevc_d_ctx *ctx, struct vb2_queue *vq)
+{
+	struct vb2_queue *other_vq;
+
+	other_vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx,
+				   V4L2_TYPE_IS_OUTPUT(vq->type) ?
+					V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE :
+					V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+	return vb2_start_streaming_called(other_vq);
+}
+
 static int hevc_d_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
@@ -576,7 +605,8 @@ static int hevc_d_start_streaming(struct vb2_queue *vq, unsigned int count)
 
 	v4l2_m2m_update_start_streaming_state(ctx->fh.m2m_ctx, vq);
 
-	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
+	/* Only start if we have both OUTPUT and CAPTURE streaming */
+	if (other_q_started(ctx, vq)) {
 		ret = hevc_d_hw_pm_get(dev);
 		if (ret)
 			goto fail_cleanup;
@@ -601,7 +631,12 @@ static void hevc_d_stop_streaming(struct vb2_queue *vq)
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vq);
 	struct hevc_d_dev *dev = ctx->dev;
 
-	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
+	/*
+	 * Stop if we stop any stream
+	 * Some decoder resource allocation is based off source and destination
+	 * formats and this prevents old badly sized buffers being used.
+	 */
+	if (other_q_started(ctx, vq)) {
 		hevc_d_h265_stop(ctx);
 		hevc_d_hw_pm_put(dev);
 	}
@@ -624,13 +659,21 @@ static void hevc_d_buf_queue(struct vb2_buffer *vb)
 static void hevc_d_buf_request_complete(struct vb2_buffer *vb)
 {
 	struct hevc_d_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
+	struct media_request *req = vb->req_obj.req;
 
-	v4l2_ctrl_request_complete(vb->req_obj.req, &ctx->hdl);
+	v4l2_ctrl_request_complete(req, &ctx->hdl);
+
+	/* Must do manual completion, to avoid WARN we must unbind first */
+	media_request_object_unbind(&vb->req_obj);
+	media_request_object_put(&vb->req_obj);
+
+	media_request_manual_complete(req);
 }
 
 static const struct vb2_ops hevc_d_qops = {
 	.queue_setup		= hevc_d_queue_setup,
 	.buf_prepare		= hevc_d_buf_prepare,
+	.buf_cleanup		= hevc_d_buf_cleanup,
 	.buf_queue		= hevc_d_buf_queue,
 	.buf_out_validate	= hevc_d_buf_out_validate,
 	.buf_request_complete	= hevc_d_buf_request_complete,
@@ -666,7 +709,6 @@ int hevc_d_queue_init(void *priv, struct vb2_queue *src_vq,
 	dst_vq->dma_attrs = DMA_ATTR_NO_KERNEL_MAPPING;
 	dst_vq->drv_priv = ctx;
 	dst_vq->buf_struct_size = sizeof(struct hevc_d_buffer);
-	dst_vq->min_queued_buffers = 1;
 	dst_vq->ops = &hevc_d_qops;
 	dst_vq->mem_ops = &vb2_dma_contig_memops;
 	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
