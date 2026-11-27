@@ -422,6 +422,7 @@ SND_SOC_DAPM_PGA("OUT3 VMID", WM8960_POWER2, 1, 0, NULL, 0),
 };
 
 static const struct snd_soc_dapm_route audio_paths[] = {
+	{ "Left Boost Mixer", NULL, "MICB"},
 	{ "Left Boost Mixer", "LINPUT1 Switch", "LINPUT1" },
 	{ "Left Boost Mixer", "LINPUT2 Switch", "LINPUT2" },
 	{ "Left Boost Mixer", "LINPUT3 Switch", "LINPUT3" },
@@ -431,6 +432,7 @@ static const struct snd_soc_dapm_route audio_paths[] = {
 	{ "Left Input Mixer", NULL, "LINPUT2" },
 	{ "Left Input Mixer", NULL, "LINPUT3" },
 
+	{ "Right Boost Mixer", NULL, "MICB"},
 	{ "Right Boost Mixer", "RINPUT1 Switch", "RINPUT1" },
 	{ "Right Boost Mixer", "RINPUT2 Switch", "RINPUT2" },
 	{ "Right Boost Mixer", "RINPUT3 Switch", "RINPUT3" },
