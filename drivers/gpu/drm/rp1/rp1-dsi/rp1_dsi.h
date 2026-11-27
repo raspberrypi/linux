@@ -35,15 +35,39 @@
 
 /* ---------------------------------------------------------------------- */
 
-struct rp1_dsi {
-	/* DRM and platform device pointers */
-	struct drm_device *drm;
-	struct platform_device *pdev;
+struct rp1_dsi;
 
-	/* Framework and helper objects */
+/*
+ * DRM state for one attached DSI device. A new DRM device is created each
+ * time a DSI device attaches, and it is released when its last user (for
+ * example an open file) goes away, which can be after the DSI device has
+ * detached and a new one has attached.
+ */
+struct rp1dsi_kms {
+	struct drm_device drm;
 	struct drm_simple_display_pipe pipe;
+	struct rp1_dsi *dsi;
+};
+
+/* The DSI bridge of one rp1dsi_kms; refcounted, it lives as long as that DRM device uses it */
+struct rp1dsi_bridge {
 	struct drm_bridge bridge;
+	struct rp1_dsi *dsi;
+	struct rp1dsi_kms *kms;
 	struct drm_bridge *out_bridge;
+};
+
+struct rp1_dsi {
+	/* Platform device; the state below lives as long as it is bound */
+	struct platform_device *pdev;
+	int irq;
+
+	/* DRM state of the attached DSI device, NULL when none is attached */
+	struct rp1dsi_kms *kms;
+	struct rp1dsi_bridge *bridge;
+	struct drm_bridge *panel_bridge;
+	bool cfg_clk_on;
+
 	struct mipi_dsi_host dsi_host;
 
 	/* Clocks. We need DPI clock; the others are frequency references */
