@@ -920,6 +920,8 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam0-imx477             Select IMX477 for camera on port 0
         cam0-imx519             Select IMX519 for camera on port 0
         cam0-imx708             Select IMX708 for camera on port 0
+        cam0-mira016            Select Mira016 for camera on port 0
+        cam0-mira220            Select Mira220 for camera on port 0
         cam0-ov2311             Select OV2311 for camera on port 0
         cam0-ov5647             Select OV5647 for camera on port 0
         cam0-ov64a40            Select OV64A40 for camera on port 0
@@ -933,6 +935,8 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam1-imx477             Select IMX477 for camera on port 1
         cam1-imx519             Select IMX519 for camera on port 1
         cam1-imx708             Select IMX708 for camera on port 1
+        cam1-mira016            Select Mira016 for camera on port 1
+        cam1-mira220            Select Mira220 for camera on port 1
         cam1-ov2311             Select OV2311 for camera on port 1
         cam1-ov5647             Select OV5647 for camera on port 1
         cam1-ov64a40            Select OV64A40 for camera on port 1
@@ -960,6 +964,8 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam0-imx477             Select IMX477 for camera on port 0
         cam0-imx519             Select IMX519 for camera on port 0
         cam0-imx708             Select IMX708 for camera on port 0
+        cam0-mira016            Select Mira016 for camera on port 0
+        cam0-mira220            Select Mira220 for camera on port 0
         cam0-ov2311             Select OV2311 for camera on port 0
         cam0-ov5647             Select OV5647 for camera on port 0
         cam0-ov64a40            Select OV64A40 for camera on port 0
@@ -973,6 +979,8 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam1-imx477             Select IMX477 for camera on port 1
         cam1-imx519             Select IMX519 for camera on port 1
         cam1-imx708             Select IMX708 for camera on port 1
+        cam1-mira016            Select Mira016 for camera on port 1
+        cam1-mira220            Select Mira220 for camera on port 1
         cam1-ov2311             Select OV2311 for camera on port 1
         cam1-ov5647             Select OV5647 for camera on port 1
         cam1-ov64a40            Select OV64A40 for camera on port 1
@@ -986,6 +994,8 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam2-imx477             Select IMX477 for camera on port 2
         cam2-imx519             Select IMX519 for camera on port 2
         cam2-imx708             Select IMX708 for camera on port 2
+        cam2-mira016            Select Mira016 for camera on port 2
+        cam2-mira220            Select Mira220 for camera on port 2
         cam2-ov2311             Select OV2311 for camera on port 2
         cam2-ov5647             Select OV5647 for camera on port 2
         cam2-ov64a40            Select OV64A40 for camera on port 2
@@ -999,6 +1009,8 @@ Params: cam0-arducam-64mp       Select Arducam64MP for camera on port 0
         cam3-imx477             Select IMX477 for camera on port 3
         cam3-imx519             Select IMX519 for camera on port 3
         cam3-imx708             Select IMX708 for camera on port 3
+        cam3-mira016            Select Mira016 for camera on port 3
+        cam3-mira220            Select Mira220 for camera on port 3
         cam3-ov2311             Select OV2311 for camera on port 3
         cam3-ov5647             Select OV5647 for camera on port 3
         cam3-ov64a40            Select OV64A40 for camera on port 3

@@ -200,6 +200,22 @@
 					#undef vcm_node
 					#undef cam1_clk
 
+					#define cam_node mira016_0
+					#define cam_endpoint mira016_0_ep
+					#define cam1_clk clk_24mhz
+					#include "mira016.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node mira220_0
+					#define cam_endpoint mira220_0_ep
+					#define cam1_clk clk_38mhz
+					#include "mira220.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
 					#define cam_node ov5647_0
 					#define cam_endpoint ov5647_0_ep
 					#define cam1_clk clk_25mhz
@@ -308,6 +324,22 @@
 					#undef cam_node
 					#undef cam_endpoint
 					#undef vcm_node
+					#undef cam1_clk
+
+					#define cam_node mira016_1
+					#define cam_endpoint mira016_1_ep
+					#define cam1_clk clk_24mhz
+					#include "mira016.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node mira220_1
+					#define cam_endpoint mira220_1_ep
+					#define cam1_clk clk_38mhz
+					#include "mira220.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
 					#undef cam1_clk
 
 					#define cam_node ov5647_1
@@ -420,6 +452,22 @@
 					#undef vcm_node
 					#undef cam1_clk
 
+					#define cam_node mira016_2
+					#define cam_endpoint mira016_2_ep
+					#define cam1_clk clk_24mhz
+					#include "mira016.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node mira220_2
+					#define cam_endpoint mira220_2_ep
+					#define cam1_clk clk_38mhz
+					#include "mira220.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
 					#define cam_node ov5647_2
 					#define cam_endpoint ov5647_2_ep
 					#define cam1_clk clk_25mhz
@@ -528,6 +576,22 @@
 					#undef cam_node
 					#undef cam_endpoint
 					#undef vcm_node
+					#undef cam1_clk
+
+					#define cam_node mira016_3
+					#define cam_endpoint mira016_3_ep
+					#define cam1_clk clk_24mhz
+					#include "mira016.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
+					#undef cam1_clk
+
+					#define cam_node mira220_3
+					#define cam_endpoint mira220_3_ep
+					#define cam1_clk clk_38mhz
+					#include "mira220.dtsi"
+					#undef cam_node
+					#undef cam_endpoint
 					#undef cam1_clk
 
 					#define cam_node ov5647_3
@@ -702,6 +766,14 @@
 				status = "okay";
 			};
 
+			clk_38mhz: clk_38mhz_1 {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+
+				clock-frequency = <38400000>;
+				status = "okay";
+			};
+
 			clk_imx290: clk_imx290_1 {
 				compatible = "fixed-clock";
 				#clock-cells = <0>;
@@ -746,6 +818,14 @@
 			      <&imx708_0>, "status=okay",
 			      <&imx708_0_vcm>, "status=okay",
 			      <&imx708_0>,"lens-focus:0=", <&imx708_0_vcm>;
+		cam0-mira016 = <&mux_in0>, "remote-endpoint:0=",<&mira016_0_ep>,
+			      <&mira016_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&mux_in0>, "clock-noncontinuous?",
+			      <&mira016_0>, "status=okay",
+			      <0>,"+100-101";
+		cam0-mira220 = <&mux_in0>, "remote-endpoint:0=",<&mira220_0_ep>,
+			      <&mira220_0_ep>, "remote-endpoint:0=",<&mux_in0>,
+			      <&mira220_0>, "status=okay";
 		cam0-ov5647 = <&mux_in0>, "remote-endpoint:0=",<&ov5647_0_ep>,
 			      <&ov5647_0_ep>, "remote-endpoint:0=",<&mux_in0>,
 			      <&mux_in0>, "clock-noncontinuous?",
@@ -799,6 +879,14 @@
 			      <&imx708_1>, "status=okay",
 			      <&imx708_1_vcm>, "status=okay",
 			      <&imx708_1>,"lens-focus:0=", <&imx708_1_vcm>;
+		cam1-mira016 = <&mux_in1>, "remote-endpoint:0=",<&mira016_1_ep>,
+			      <&mira016_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&mux_in1>, "clock-noncontinuous?",
+			      <&mira016_1>, "status=okay",
+			      <0>,"+102-103";
+		cam1-mira220 = <&mux_in1>, "remote-endpoint:0=",<&mira220_1_ep>,
+			      <&mira220_1_ep>, "remote-endpoint:0=",<&mux_in1>,
+			      <&mira220_1>, "status=okay";
 		cam1-ov5647 = <&mux_in1>, "remote-endpoint:0=",<&ov5647_1_ep>,
 			      <&ov5647_1_ep>, "remote-endpoint:0=",<&mux_in1>,
 			      <&mux_in1>, "clock-noncontinuous?",
@@ -852,6 +940,14 @@
 			      <&imx708_2>, "status=okay",
 			      <&imx708_2_vcm>, "status=okay",
 			      <&imx708_2>,"lens-focus:0=", <&imx708_2_vcm>;
+		cam2-mira016 = <&mux_in2>, "remote-endpoint:0=",<&mira016_2_ep>,
+			      <&mira016_2_ep>, "remote-endpoint:0=",<&mux_in2>,
+			      <&mux_in2>, "clock-noncontinuous?",
+			      <&mira016_2>, "status=okay",
+			      <0>,"+104-105";
+		cam2-mira220 = <&mux_in2>, "remote-endpoint:0=",<&mira220_2_ep>,
+			      <&mira220_2_ep>, "remote-endpoint:0=",<&mux_in2>,
+			      <&mira220_2>, "status=okay";
 		cam2-ov5647 = <&mux_in2>, "remote-endpoint:0=",<&ov5647_2_ep>,
 			      <&ov5647_2_ep>, "remote-endpoint:0=",<&mux_in2>,
 			      <&mux_in2>, "clock-noncontinuous?",
@@ -905,6 +1001,14 @@
 			      <&imx708_3>, "status=okay",
 			      <&imx708_3_vcm>, "status=okay",
 			      <&imx708_3>,"lens-focus:0=", <&imx708_3_vcm>;
+		cam3-mira016 = <&mux_in3>, "remote-endpoint:0=",<&mira016_3_ep>,
+			      <&mira016_3_ep>, "remote-endpoint:0=",<&mux_in3>,
+			      <&mux_in3>, "clock-noncontinuous?",
+			      <&mira016_3>, "status=okay",
+			      <0>,"+106-107";
+		cam3-mira220 = <&mux_in3>, "remote-endpoint:0=",<&mira220_3_ep>,
+			      <&mira220_3_ep>, "remote-endpoint:0=",<&mux_in3>,
+			      <&mira220_3>, "status=okay";
 		cam3-ov5647 = <&mux_in3>, "remote-endpoint:0=",<&ov5647_3_ep>,
 			      <&ov5647_3_ep>, "remote-endpoint:0=",<&mux_in3>,
 			      <&mux_in3>, "clock-noncontinuous?",
@@ -947,6 +1051,7 @@
 		       <&videomux>, "reg:0=0",
 		       <&clk_24mhz>, "name=clk_24mhz_0",
 		       <&clk_25mhz>, "name=clk_25mhz_0",
+		       <&clk_38mhz>, "name=clk_38mhz_0",
 		       <&clk_imx290>, "name=clk_imx290_0";
 
 		cam0-sync-source = <&imx477_0>, "trigger-mode:0=1";
